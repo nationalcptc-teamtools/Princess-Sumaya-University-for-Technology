@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# A script that exists for no good reason. I dont know why its a script, maybe I'm bored.
+# A script that exists for no good reason. I dont know why I made it, maybe I'm bored.
 
 fin_msg(){
 		echo -e "\n\n#################################\n\t$1 DONE\n#################################\n\n"
@@ -12,6 +12,7 @@ fin_msg(){
 # checks sudo access
 sudo echo || { echo -e "\n\nsudo access denied. run script with a sudoer please."; exit; }
 
+# Preparations
 mkdir -p ~/dropzone/github-tools
 cd ~/dropzone
 sudo apt update
