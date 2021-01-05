@@ -4,7 +4,26 @@ fin_msg(){
 		echo -e "\n\n#################################\n\t$1 DONE\n#################################\n\n"
 	}
 
+# checks sudo access
+sudo echo || { echo -e "\n\nsudo access denied. run script with a sudoer please."; exit; }
+
 mkdir -p ~/dropzone/github-tools
+
+# Install golang
+cd ~/dropzone
+sudo apt update
+if (which go); then
+	fin_msg 'Go installation' 
+else
+	sudo apt install golang -y
+	# wget "https://golang.org/dl/go1.15.6.linux-amd64.tar.gz"
+	# sudo tar -C /usr/local/ -xzf go*.linux-amd64.tar.gz
+	# echo -e "export GOPATH=/root/go-workspace\nexport GOROOT=/usr/local/go\nPATH=\$PATH:\$GOROOT/bin/:\$GOPATH/bin" >> ~/.bashrc 
+	# source ~/.bashrc
+	fin_msg 'GO installation' 
+fi
+
+# Download Tools
 cd ~/dropzone/github-tools
 git clone https://github.com/Tib3rius/AutoRecon.git && fin_msg 'AutoRecon' &  # AutoRecon
 git clone https://github.com/byt3bl33d3r/CrackMapExec.git & fin_msg 'CrackMapExec' &  # CrackMapExec
