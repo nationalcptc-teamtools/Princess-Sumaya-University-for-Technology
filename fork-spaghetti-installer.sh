@@ -16,7 +16,7 @@ sudo echo || { echo -e "\n\nsudo access denied. run script with a sudoer please.
 mkdir -p ~/dropzone/github-tools
 cd ~/dropzone
 sudo apt update
-sudo apt install python3 python3-pip mc seclists curl golang enum4linux gobuster nbtscan nikto nmap onesixtyone oscanner smbclient smbmap smtp-user-enum snmp sslscan sipvicious tnscmd10g whatweb wkhtmltopdf -y 
+sudo apt install python3 python3-pip mc tmux seclists curl golang enum4linux gobuster nbtscan nikto nmap onesixtyone oscanner smbclient smbmap smtp-user-enum snmp sslscan sipvicious tnscmd10g whatweb wkhtmltopdf -y 
 wait
 
 # Download Tools
