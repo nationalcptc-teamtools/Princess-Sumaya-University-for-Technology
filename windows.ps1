@@ -9,7 +9,7 @@ Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
 # Install chocolatey
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
-# windows terminal, openssh and burpsuite
+# windows terminal, openssh, burpsuite
 choco install microsoft-windows-terminal openssh burp-suite-free-edition -y
 
 # snaffler
