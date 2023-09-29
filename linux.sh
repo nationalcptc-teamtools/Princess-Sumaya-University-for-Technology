@@ -15,6 +15,8 @@ sudo echo || { echo -e "\n\nsudo access denied. run script with a sudoer please.
 # Preparations
 mkdir -p ~/dropzone
 cd ~/dropzone
+
+export DEBIAN_FRONTEND=noninteractive
 sudo apt update
 sudo apt install -y \
     apt-transport-https \
@@ -57,7 +59,8 @@ sudo apt install -y \
     docker-compose \
     openjdk-11-jdk  \
     shellter \
-    evil-winrm
+    evil-winrm \
+    john
 wait
 sudo usermod -aG docker $USER
 fin_msg 'apt packages'
@@ -67,6 +70,7 @@ wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo apt-key add -
 echo 'deb https://debian.neo4j.com stable 4' | sudo tee /etc/apt/sources.list.d/neo4j.list > /dev/null
 sudo apt-get update
 sudo apt-get install neo4j -y
+sudo systemctl stop neo4j
 fin_msg 'neo4j'
 
 # Install Impacket
@@ -98,7 +102,6 @@ pip install python-ldap
 fin_msg 'windapsearch'
 
 
-git clone https://github.com/openwall/john.git && $(cd ~/dropzone/john/src && ./configure && make) && fin_msg 'John [Jumbo]' &  # John the Ripper Jumbo
 git clone https://github.com/SpiderLabs/Responder
 wget -q "https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip" && unzip "aquatone_linux_amd64_1.7.0.zip" -d ./aquatone && fin_msg 'Aquatone' &  # Aquatone
 
