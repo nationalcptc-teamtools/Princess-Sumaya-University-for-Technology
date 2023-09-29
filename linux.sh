@@ -16,18 +16,82 @@ sudo echo || { echo -e "\n\nsudo access denied. run script with a sudoer please.
 mkdir -p ~/dropzone
 cd ~/dropzone
 sudo apt update
-sudo apt install python3 python3-pip libssl-dev mc tmux seclists curl golang enum4linux gobuster nbtscan nikto nmap onesixtyone oscanner smbclient smbmap smtp-user-enum snmp sslscan sipvicious tnscmd10g whatweb wkhtmltopdf hashcat feroxbuster dnsrecon redis-tools git wget aircrack-ng set -y 
+sudo apt install -y \
+    apt-transport-https \
+    python3 \
+    python3-pip \
+    libssl-dev \
+    mc \
+    seclists \
+    curl \
+    golang \
+    enum4linux \
+    gobuster \
+    nbtscan \
+    nikto \
+    nmap \
+    onesixtyone \
+    oscanner \
+    smbclient \
+    smbmap \
+    smtp-user-enum \
+    snmp \
+    sslscan \
+    sipvicious \
+    tnscmd10g \
+    whatweb \
+    wkhtmltopdf \
+    hashcat \
+    feroxbuster \
+    dnsrecon \
+    redis-tools \
+    git \
+    wget \
+    aircrack-ng \
+    set \
+    sqlmap \
+    xfreerdp \
+    hydra \
+    impacket-scripts \
+    bloodhound.py\
+    docker.io \
+    docker-compose \
+    openjdk-11-jdk  \
+    shellter \
+    evil-winrm
 wait
+
+# Install Neo4j
+wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo apt-key add -
+echo 'deb https://debian.neo4j.com stable 4' | sudo tee /etc/apt/sources.list.d/neo4j.list > /dev/null
+sudo apt-get update
+sudo apt-get install neo4j
+
+# Install Impacket
+pip install --user pipx
+python3 -m pipx install impacket
+
 
 # Download Tools
 cd ~/dropzone
 fin_msg 'Gobuster' && fin_msg 'Nikto Scanner' && fin_msg 'Seclists install'
-sudo python3 -m pip install crackmapexec && fin_msg 'CrackMapExec' &  # CrackMapExec
+sudo python3 -m pip install crackmapexec && fin_msg 'CrackMapExec'
 git clone https://github.com/Tib3rius/AutoRecon.git && sudo python3 -m pip install -r ~/dropzone/AutoRecon/requirements.txt && fin_msg 'AutoRecon' &  # AutoRecon
 
 mkdir privesc 
 curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh -o ~/dropzone/privesc/linpeas.sh
 curl -L https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Privesc/PowerUp.ps1 -o ~/dropzone/privesc/PowerUp.ps1
+
+
+wget https://github.com/BloodHoundAD/BloodHound/releases/download/v4.3.1/BloodHound-linux-x64.zip
+unzip BloodHound-linux-x64.zip && fin_msg 'Bloodhound'
+
+curl -L https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64 -o /usr/local/bin/kerbrute && chmod +x /usr/local/bin/kerbrute && fin_msg 'Kerbrute'
+
+
+git clone https://github.com/ropnop/windapsearch.git
+pip install python-ldap
+fin_msg 'windapsearch'
 
 
 git clone https://github.com/openwall/john.git && $(cd ~/dropzone/john/src && ./configure && make) && fin_msg 'John [Jumbo]' &  # John the Ripper Jumbo
