@@ -17,6 +17,7 @@ mkdir -p ~/dropzone
 cd ~/dropzone
 
 export DEBIAN_FRONTEND=noninteractive
+sudo apt remove needrestart -y
 sudo apt update
 sudo apt install -y \
     apt-transport-https \
@@ -65,13 +66,18 @@ wait
 sudo usermod -aG docker $USER
 fin_msg 'apt packages'
 
-# Install Neo4j
-wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo apt-key add -
-echo 'deb https://debian.neo4j.com stable 4' | sudo tee /etc/apt/sources.list.d/neo4j.list > /dev/null
-sudo apt-get update
-sudo apt-get install neo4j -y
-sudo systemctl stop neo4j
-fin_msg 'neo4j'
+# Download jsmith wordlists
+git clone https://github.com/insidetrust/statistically-likely-usernames
+fin_msg 'jsmith wordlists'
+
+
+# # Install Neo4j
+# wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo apt-key add -
+# echo 'deb https://debian.neo4j.com stable 4' | sudo tee /etc/apt/sources.list.d/neo4j.list > /dev/null
+# sudo apt-get update
+# sudo apt-get install neo4j -y
+# sudo systemctl stop neo4j
+# fin_msg 'neo4j'
 
 # Install Impacket
 pip install --user pipx
