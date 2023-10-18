@@ -15,5 +15,10 @@ choco install microsoft-windows-terminal openssh burp-suite-free-edition git neo
 # snaffler
 Invoke-WebRequest https://github.com/SnaffCon/Snaffler/releases/download/1.0.135/Snaffler.exe -OutFile ~\Desktop\Snaffler.exe
 
+# BloodHoundAD
+Invoke-WebRequest https://github.com/BloodHoundAD/BloodHound/releases/download/v4.3.1/BloodHound-win32-x64.zip -OutFile ~\Desktop\BloodHound.zip 
+# unzip
+Expand-Archive -Path ~\Desktop\BloodHound.zip -DestinationPath ~\Desktop\BloodHound
+
 # refresh env
 refreshenv
