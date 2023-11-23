@@ -99,6 +99,8 @@ unzip BloodHound-linux-x64.zip && fin_msg 'Bloodhound'
 
 curl -L https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64 -o /usr/local/bin/kerbrute && chmod +x /usr/local/bin/kerbrute && fin_msg 'Kerbrute'
 
+git clone https://github.com/SpiderLabs/Responder
+wget -q "https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip" && unzip "aquatone_linux_amd64_1.7.0.zip" -d ./aquatone && fin_msg 'Aquatone' &  # Aquatone
 
 git clone https://github.com/ropnop/windapsearch.git
 sudo apt-get install build-essential python3-dev \
@@ -106,10 +108,6 @@ sudo apt-get install build-essential python3-dev \
     lcov valgrind -y
 pip install python-ldap
 fin_msg 'windapsearch'
-
-
-git clone https://github.com/SpiderLabs/Responder
-wget -q "https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip" && unzip "aquatone_linux_amd64_1.7.0.zip" -d ./aquatone && fin_msg 'Aquatone' &  # Aquatone
 
 wait
 echo -e "\n\nTools installed successfully.\n\nSome tools are dropped at ~/dropzone. Good Luck.\n"
