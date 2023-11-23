@@ -2,6 +2,10 @@
 
 # A script that exists for no good reason. I dont know why I made it, maybe I'm bored.
 
+echo "export HISTSIZE=100000" >> ~/.zshrc
+echo "export HISTFILESIZE=10000" >> ~/.zshrc
+source ~/.zshrc
+
 fin_msg(){
         echo -e "\n\n#################################\n\t$1 DONE\n#################################\n\n"
     }

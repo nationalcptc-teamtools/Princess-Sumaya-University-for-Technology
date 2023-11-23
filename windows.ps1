@@ -21,5 +21,8 @@ Invoke-WebRequest https://github.com/BloodHoundAD/BloodHound/releases/download/v
 # unzip
 Expand-Archive -Path ~\Desktop\BloodHound.zip -DestinationPath ~\Desktop\BloodHound
 
+# increase putty scrollback
+reg add "HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions\Default%20Settings" /v ScrollbackLines /t REG_DWORD /d 10000 /f
+
 # refresh env
 refreshenv
