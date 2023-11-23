@@ -10,7 +10,7 @@ Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
 # windows terminal, openssh, burpsuite
-choco install microsoft-windows-terminal openssh burp-suite-free-edition git neo4j-community -y
+choco install openssh burp-suite-free-edition git neo4j-community -y
 
 # snaffler
 Invoke-WebRequest https://github.com/SnaffCon/Snaffler/releases/download/1.0.135/Snaffler.exe -OutFile ~\Desktop\Snaffler.exe
