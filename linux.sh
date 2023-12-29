@@ -3,7 +3,7 @@
 # A script that exists for no good reason. I dont know why I made it, maybe I'm bored.
 
 echo "export HISTSIZE=100000" >> ~/.zshrc
-echo "export HISTFILESIZE=10000" >> ~/.zshrc
+echo "export HISTFILESIZE=100000" >> ~/.zshrc
 source ~/.zshrc
 
 fin_msg(){
