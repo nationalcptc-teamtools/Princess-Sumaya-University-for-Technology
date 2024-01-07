@@ -65,7 +65,8 @@ sudo apt install -y \
     openjdk-11-jdk  \
     shellter \
     evil-winrm \
-    john
+    john    \
+    awscli
 wait
 sudo usermod -aG docker $USER
 fin_msg 'apt packages'
@@ -74,6 +75,19 @@ fin_msg 'apt packages'
 git clone https://github.com/insidetrust/statistically-likely-usernames
 fin_msg 'jsmith wordlists'
 
+git clone https://github.com/r3motecontrol/Ghostpack-CompiledBinaries
+fin_msg 'Compiled binaries'
+
+git clone https://github.com/ly4k/Certipy
+pip install certipy-ad
+fin_msg 'Certipy'
+
+git clone https://github.com/dirkjanm/PKINITtools
+pip install minikerberos
+fin_msg 'PKINITtools'
+
+git clone https://github.com/NaturalT314/ToolBox
+fin_msg 'NaturalT314 ToolBox'
 
 # # Install Neo4j
 # wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo apt-key add -
@@ -110,9 +124,10 @@ git clone https://github.com/ropnop/windapsearch.git
 sudo apt-get install build-essential python3-dev \
     libldap2-dev libsasl2-dev slapd ldap-utils tox \
     lcov valgrind -y
-pip install python-ldap
+pip install python-ldap pacu scoutsuite principalmapper minikerberos
 fin_msg 'windapsearch'
 
+rehash
 wait
 echo -e "\n\nTools installed successfully.\n\nSome tools are dropped at ~/dropzone. Good Luck.\n"
 
