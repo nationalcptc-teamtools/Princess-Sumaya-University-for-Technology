@@ -120,14 +120,17 @@ curl -L https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_lin
 git clone https://github.com/SpiderLabs/Responder
 wget -q "https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip" && unzip "aquatone_linux_amd64_1.7.0.zip" -d ./aquatone && fin_msg 'Aquatone' &  # Aquatone
 
-git clone https://github.com/ropnop/windapsearch.git
-sudo apt-get install build-essential python3-dev \
-    libldap2-dev libsasl2-dev slapd ldap-utils tox \
-    lcov valgrind -y
-pip install python-ldap pacu scoutsuite principalmapper minikerberos
+# git clone https://github.com/ropnop/windapsearch.git
+# sudo apt-get install build-essential python3-dev \
+#     libldap2-dev libsasl2-dev slapd ldap-utils tox \
+#     lcov valgrind -y
+wget https://github.com/ropnop/go-windapsearch/releases/download/v0.3.0/windapsearch-linux-amd64 -O /usr/local/bin/windapsearch && chmod +x /usr/local/bin/windapsearch
 fin_msg 'windapsearch'
 
-rehash
+pip install pacu scoutsuite principalmapper minikerberos
+
+
+hash -r
 wait
 echo -e "\n\nTools installed successfully.\n\nSome tools are dropped at ~/dropzone. Good Luck.\n"
 
