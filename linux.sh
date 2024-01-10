@@ -86,8 +86,8 @@ git clone https://github.com/dirkjanm/PKINITtools
 pip install minikerberos
 fin_msg 'PKINITtools'
 
-git clone https://github.com/NaturalT314/ToolBox
-fin_msg 'NaturalT314 ToolBox'
+# git clone https://github.com/NaturalT314/ToolBox
+# fin_msg 'NaturalT314 ToolBox'
 
 # # Install Neo4j
 # wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo apt-key add -
