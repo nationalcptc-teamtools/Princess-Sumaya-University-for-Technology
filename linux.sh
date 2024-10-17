@@ -68,6 +68,8 @@ sudo apt install -y \
     burpsuite
 
 wait
+sudo sed -i 's/#dbms.default_listen_address=0.0.0.0/dbms.default_listen_address=0.0.0.0/' /etc/neo4j/neo4j.conf
+
 sudo usermod -aG docker $USER
 fin_msg 'apt packages'
 
