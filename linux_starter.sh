@@ -5,9 +5,9 @@ sudo apt update
 sudo apt install -y \
     python3 \
     python3-pip \
-    nmap 
+    nmap
 
-pip install argparse requests pwn bs4  --break-system-packages
+pip3 install argparse requests pwn bs4  --break-system-packages
 
 wget https://raw.githubusercontent.com/zoznoor23/jVision/refs/heads/main/jvisionclient.py
 
