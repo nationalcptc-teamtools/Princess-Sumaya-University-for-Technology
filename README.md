@@ -5,8 +5,10 @@ a collection of resources, scripts and tools to aid setting up the testing envir
 ## Usage (Linux)
 
 ```bash
+sudo systemctl start ssh
 git clone https://github.com/nationalcptc-teamtools/Princess-Sumaya-University-for-Technology
 cd Princess-Sumaya-University-for-Technology
+bash start.sh
 bash linux.sh
 ```
 
