@@ -1,7 +1,4 @@
-#! /bin/bash
-
-# A script that exists for no good reason. I dont know why I made it, maybe I'm bored.
-
+#!/bin/bash
 echo "export HISTSIZE=100000" >> ~/.zshrc
 echo "export HISTFILESIZE=100000" >> ~/.zshrc
 source ~/.zshrc
@@ -35,7 +32,6 @@ sudo apt install -y \
     enum4linux \
     gobuster \
     nbtscan \
-    nikto \
     nmap \
     onesixtyone \
     oscanner \
@@ -63,10 +59,17 @@ sudo apt install -y \
     docker.io \
     docker-compose \
     openjdk-11-jdk  \
-    shellter \
     evil-winrm \
     john    \
-    awscli
+    awscli \
+    neo4j \
+    bloodhound \
+    netexec \
+    responder \
+    sshuttle \
+    ffuf \
+    burpsuite
+
 wait
 sudo usermod -aG docker $USER
 fin_msg 'apt packages'
@@ -85,6 +88,12 @@ fin_msg 'Certipy'
 git clone https://github.com/dirkjanm/PKINITtools
 pip install minikerberos
 fin_msg 'PKINITtools'
+
+git clone https://github.com/CravateRouge/bloodyAD.git
+cd bloodyAD
+pip install -r requirements.txt
+cd ~/dropzone
+fin_msg 'bloodyAD'
 
 # git clone https://github.com/NaturalT314/ToolBox
 # fin_msg 'NaturalT314 ToolBox'
@@ -105,30 +114,38 @@ fin_msg 'impacket'
 # Download Tools
 cd ~/dropzone
 sudo python3 -m pip install crackmapexec && fin_msg 'CrackMapExec'
-git clone https://github.com/Tib3rius/AutoRecon.git && sudo python3 -m pip install -r ~/dropzone/AutoRecon/requirements.txt && fin_msg 'AutoRecon' &  # AutoRecon
+# git clone https://github.com/Tib3rius/AutoRecon.git && sudo python3 -m pip install -r ~/dropzone/AutoRecon/requirements.txt && fin_msg 'AutoRecon' &  # AutoRecon
 
 mkdir privesc 
 curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh -o ~/dropzone/privesc/linpeas.sh
 curl -L https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Privesc/PowerUp.ps1 -o ~/dropzone/privesc/PowerUp.ps1
-
-
-wget -q https://github.com/BloodHoundAD/BloodHound/releases/download/v4.3.1/BloodHound-linux-x64.zip
-unzip BloodHound-linux-x64.zip && fin_msg 'Bloodhound'
+curl -L https://github.com/peass-ng/PEASS-ng/releases/download/20241011-2e37ba11/winPEASx64.exe  -o ~/dropzone/privesc/winpeas.exe
+curl -L https://raw.githubusercontent.com/enjoiz/Privesc/refs/heads/master/privesc.ps1 -o ~/dropzone/privesc/privesc.ps1
+curl -L https://raw.githubusercontent.com/itm4n/PrivescCheck/refs/heads/master/PrivescCheck.ps1 -o ~/dropzone/privesc/PrivescCheck.ps1
 
 curl -L https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64 -o /usr/local/bin/kerbrute && chmod +x /usr/local/bin/kerbrute && fin_msg 'Kerbrute'
 
-git clone https://github.com/SpiderLabs/Responder
-wget -q "https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip" && unzip "aquatone_linux_amd64_1.7.0.zip" -d ./aquatone && fin_msg 'Aquatone' &  # Aquatone
-
-# git clone https://github.com/ropnop/windapsearch.git
-# sudo apt-get install build-essential python3-dev \
-#     libldap2-dev libsasl2-dev slapd ldap-utils tox \
-#     lcov valgrind -y
 wget https://github.com/ropnop/go-windapsearch/releases/download/v0.3.0/windapsearch-linux-amd64 -O /usr/local/bin/windapsearch && chmod +x /usr/local/bin/windapsearch
 fin_msg 'windapsearch'
+wget https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64 
+fin_msg 'pspy64' 
+wget https://raw.githubusercontent.com/urbanadventurer/username-anarchy/refs/heads/master/username-anarchy 
+curl -L https://raw.githubusercontent.com/brightio/penelope/refs/heads/main/extras/tty_upgrade.sh -o /usr/local/bin/upshell 
+fin_msg 'upshell' 
+wget https://github.com/jpillora/chisel/releases/download/v1.10.1/chisel_1.10.1_linux_amd64.deb -o chisel && chmod +x chisel 
+fin_msg 'chisel'
 
-pip install pacu scoutsuite principalmapper minikerberos
 
+pip install pacu scoutsuite principalmapper minikerberos pypykatz
+
+
+git clone https://github.com/lefayjey/linWinPwn.git && chmod +x ~/dropzone/linWinPwn/linWinPwn.sh && chmod +x ~/dropzone/linWinPwn/install.sh && ~/dropzone/linWinPwn/install.sh
+mv ~/dropzone/linWinPwn/linWinPwn.sh /usr/local/bin/linwinpwn
+fin_msg 'linwinpwn'
+
+sudo apt install -y kali-desktop-xfce xorg xrdp
+sudo systemctl enable xrdp --now
+sudo systemctl start xrdp
 
 hash -r
 wait
