@@ -10,7 +10,8 @@ sudo apt install -y \
 pip install argparse requests pwn bs4  --break-system-packages
 
 wget https://raw.githubusercontent.com/zoznoor23/jVision/refs/heads/main/jvisionclient.py
-
+sudo systemctl enable ssh
+sudo systemctl start ssh
 sudo apt install -y kali-desktop-xfce xorg xrdp
 sudo systemctl enable xrdp --now
 sudo systemctl start xrdp
