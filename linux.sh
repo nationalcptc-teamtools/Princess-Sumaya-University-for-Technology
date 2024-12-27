@@ -65,7 +65,8 @@ sudo apt install -y \
     responder \
     sshuttle \
     ffuf \
-    burpsuite
+    burpsuite \
+    nuclei
 
 wait
 sudo sed -i 's/#dbms.default_listen_address=0.0.0.0/dbms.default_listen_address=0.0.0.0/' /etc/neo4j/neo4j.conf
@@ -148,6 +149,9 @@ sudo apt-get update
 sudo apt-get install -qq sublime-text
 echo ""
 echo "[+] sublime installed "
+
+git clone https://github.com/projectdiscovery/nuclei-templates.git
+fin_msg 'nuclei templates'
 
 hash -r
 wait
