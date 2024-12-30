@@ -54,7 +54,6 @@ sudo apt install -y \
     impacket-scripts \
     bloodhound.py\
     docker.io \
-    docker-compose \
     openjdk-11-jdk  \
     evil-winrm \
     john    \
@@ -69,6 +68,7 @@ sudo apt install -y \
     nuclei
 
 wait
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo sed -i 's/#dbms.default_listen_address=0.0.0.0/dbms.default_listen_address=0.0.0.0/' /etc/neo4j/neo4j.conf
 
 sudo usermod -aG docker $USER
