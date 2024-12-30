@@ -60,11 +60,11 @@ sudo apt install -y \
     awscli \
     neo4j \
     bloodhound \
-    netexec \
     responder \
     sshuttle \
     ffuf \
     burpsuite \
+    python3.12-venv \
     nuclei
 
 wait
@@ -80,6 +80,9 @@ fin_msg 'jsmith wordlists'
 
 git clone https://github.com/r3motecontrol/Ghostpack-CompiledBinaries
 fin_msg 'Compiled binaries'
+
+pipx install git+https://github.com/Pennyw0rth/NetExec
+fin_msg 'NXC -nahya'
 
 git clone https://github.com/ly4k/Certipy
 pip install certipy-ad  --break-system-packages
