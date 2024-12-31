@@ -27,7 +27,6 @@ sudo apt install -y \
     seclists \
     curl \
     golang \
-    enum4linux \
     gobuster \
     nbtscan \
     onesixtyone \
@@ -51,16 +50,10 @@ sudo apt install -y \
     set \
     sqlmap \
     hydra \
-    impacket-scripts \
-    bloodhound.py\
     docker.io \
     openjdk-11-jdk  \
-    evil-winrm \
     john    \
     awscli \
-    neo4j \
-    bloodhound \
-    responder \
     sshuttle \
     ffuf \
     burpsuite \
@@ -69,34 +62,15 @@ sudo apt install -y \
 
 wait
 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo sed -i 's/#dbms.default_listen_address=0.0.0.0/dbms.default_listen_address=0.0.0.0/' /etc/neo4j/neo4j.conf
 
 sudo usermod -aG docker $USER
 fin_msg 'apt packages'
 
 # Download jsmith wordlists
-git clone https://github.com/insidetrust/statistically-likely-usernames
-fin_msg 'jsmith wordlists' 
+#git clone https://github.com/insidetrust/statistically-likely-usernames
+#fin_msg 'jsmith wordlists' 
 
-git clone https://github.com/r3motecontrol/Ghostpack-CompiledBinaries
-fin_msg 'Compiled binaries'
 
-pipx install git+https://github.com/Pennyw0rth/NetExec
-fin_msg 'NXC -nahya'
-
-git clone https://github.com/ly4k/Certipy
-pip install certipy-ad  --break-system-packages
-fin_msg 'Certipy'
-
-git clone https://github.com/dirkjanm/PKINITtools
-pip install minikerberos  --break-system-packages
-fin_msg 'PKINITtools'
-
-git clone https://github.com/CravateRouge/bloodyAD.git
-cd bloodyAD
-pip install -r requirements.txt --break-system-packages
-cd ~/dropzone
-fin_msg 'bloodyAD'
 
 # git clone https://github.com/NaturalT314/ToolBox
 # fin_msg 'NaturalT314 ToolBox'
@@ -109,10 +83,7 @@ fin_msg 'bloodyAD'
 # sudo systemctl stop neo4j
 # fin_msg 'neo4j'
 
-# Install Impacket
-pip install --user pipx --break-system-packages
-python3 -m pipx install impacket
-fin_msg 'impacket'
+
 
 # Download Tools
 cd ~/dropzone
@@ -126,10 +97,7 @@ curl -L https://github.com/peass-ng/PEASS-ng/releases/download/20241011-2e37ba11
 curl -L https://raw.githubusercontent.com/enjoiz/Privesc/refs/heads/master/privesc.ps1 -o ~/dropzone/privesc/privesc.ps1
 curl -L https://raw.githubusercontent.com/itm4n/PrivescCheck/refs/heads/master/PrivescCheck.ps1 -o ~/dropzone/privesc/PrivescCheck.ps1
 
-curl -L https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64 -o /usr/local/bin/kerbrute && chmod +x /usr/local/bin/kerbrute && fin_msg 'Kerbrute'
 
-wget https://github.com/ropnop/go-windapsearch/releases/download/v0.3.0/windapsearch-linux-amd64 -O /usr/local/bin/windapsearch && chmod +x /usr/local/bin/windapsearch
-fin_msg 'windapsearch'
 wget https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64 
 fin_msg 'pspy64' 
 wget https://raw.githubusercontent.com/urbanadventurer/username-anarchy/refs/heads/master/username-anarchy 
@@ -159,4 +127,3 @@ fin_msg 'nuclei templates'
 hash -r
 wait
 echo -e "\n\nTools installed successfully.\n\nSome tools are dropped at ~/dropzone. Good Luck.\n"
-
