@@ -9,7 +9,7 @@ sudo systemctl start ssh
 git clone https://github.com/nationalcptc-teamtools/Princess-Sumaya-University-for-Technology
 cd Princess-Sumaya-University-for-Technology
 bash start.sh
-bash linux.sh
+bash all.sh
 ```
 
 ## Usage (Windows)
