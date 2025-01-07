@@ -51,3 +51,13 @@ fin_msg 'windapsearch'
 pip install --user pipx --break-system-packages
 python3 -m pipx install impacket
 fin_msg 'impacket'
+
+
+# sliver setup
+
+curl https://sliver.sh/install|sudo bash
+cp /root/sliver-server /usr/bin
+sudo systemctl start sliver
+sudo systemctl enable sliver
+
+fin_msg 'sliver - client and server'
