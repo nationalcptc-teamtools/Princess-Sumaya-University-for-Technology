@@ -62,6 +62,7 @@ if sudo apt install -y \
     docker.io \
     bloodhound \
     neo4j \
+    certipy-ad \
     evil-winrm \
     responder; then
     print_success "AD tools installed via APT"
