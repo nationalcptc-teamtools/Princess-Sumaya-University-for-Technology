@@ -49,6 +49,19 @@ else
     print_success "Shell history already configured"
 fi
 
+if echo 'preexec() { printf "%s %s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "$1" >> ~/.zsh_history_readable }' >> ~/.zshrc && source ~/.zshrc ; then
+    print_success "History timestamped"
+else 
+    print_warning "Timestamping failed"
+fi
+
+if xfconf-query -c xfwm4 -p /general/use_compositing -s false ; then
+    print_success "Shell display settings configured"
+else 
+    print_warning "Shell display configuration failed"
+fi
+
+
 if [ -d "$HOME/dropzone" ]; then
     print_warning "Dropzone directory exists, maybe you ran this before?"
     read -p "Continue anyway? (y/N): " -n 1 -r
@@ -302,6 +315,16 @@ if [ ! -d "nuclei-templates" ]; then
 else
     print_success "Nuclei templates already exist"
 fi
+
+
+print_status "Cloning SSTImap"
+cd ~/dropzone
+if git clone https://github.com/vladko312/SSTImap.git; then
+    print_success "SSTImap cloned"
+else 
+    print_warning "SSTImap clone failed"
+fi 
+
 
 print_status "Installing additional useful Go tools..."
 export GOPATH=$HOME/go
