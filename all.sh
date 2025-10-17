@@ -138,7 +138,7 @@ if sudo apt install -y \
     sshuttle \
     ffuf \
     burpsuite \
-    python3.12-venv \
+    python3.13-venv \
     nuclei \
     dirsearch \
     flameshot \
