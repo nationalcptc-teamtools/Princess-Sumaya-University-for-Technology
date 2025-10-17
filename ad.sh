@@ -216,29 +216,29 @@ else
     print_warning "Impacket installation may have failed (might already be installed)"
 fi
 
-print_status "Installing Sliver C2 Framework..."
-if ! command -v sliver &> /dev/null; then
-    if curl -s https://sliver.sh/install | sudo bash; then
-        print_success "Sliver installed"
+# print_status "Installing Sliver C2 Framework..."
+# if ! command -v sliver &> /dev/null; then
+#     if curl -s https://sliver.sh/install | sudo bash; then
+#         print_success "Sliver installed"
 
-        if [ -f "/root/sliver-server" ]; then
-            sudo cp /root/sliver-server /usr/bin/ 2>/dev/null || print_warning "Could not copy sliver-server from /root"
-        fi
+#         if [ -f "/root/sliver-server" ]; then
+#             sudo cp /root/sliver-server /usr/bin/ 2>/dev/null || print_warning "Could not copy sliver-server from /root"
+#         fi
 
-        if sudo systemctl enable sliver 2>/dev/null && sudo systemctl start sliver 2>/dev/null; then
-            print_success "Sliver service enabled and started"
-        else
-            print_warning "Sliver service configuration failed (may not have systemd unit)"
-        fi
-        fin_msg 'Sliver C2'
-    else
-        print_warning "Sliver installation failed"
-    fi
-else
-    print_success "Sliver already installed"
-    sliver_version=$(sliver version 2>&1 | head -n1 || echo "installed")
-    print_status "Sliver version: $sliver_version"
-fi
+#         if sudo systemctl enable sliver 2>/dev/null && sudo systemctl start sliver 2>/dev/null; then
+#             print_success "Sliver service enabled and started"
+#         else
+#             print_warning "Sliver service configuration failed (may not have systemd unit)"
+#         fi
+#         fin_msg 'Sliver C2'
+#     else
+#         print_warning "Sliver installation failed"
+#     fi
+# else
+#     print_success "Sliver already installed"
+#     sliver_version=$(sliver version 2>&1 | head -n1 || echo "installed")
+#     print_status "Sliver version: $sliver_version"
+# fi
 
 print_status "Installing additional AD Python tools..."
 if pip install pypykatz aardwolf --break-system-packages; then
@@ -294,7 +294,7 @@ verify_tool "responder"
 verify_tool "enum4linux"
 verify_tool "kerbrute"
 verify_tool "windapsearch"
-verify_tool "certipy"
+verify_tool "certipy-ad"
 
 verify_file "$HOME/dropzone/Ghostpack-CompiledBinaries" "Ghostpack binaries"
 verify_file "$HOME/dropzone/SharpEfsPotato" "SharpEfsPotato"
