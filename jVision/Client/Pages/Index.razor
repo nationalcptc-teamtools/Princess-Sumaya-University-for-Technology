@@ -1,0 +1,484 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@using jVision.Shared.Models
+@using jVision.Shared
+@using jVision.Client.Shared
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IJSRuntime _JSRuntime
+
+@inject NavigationManager NavigationManager
+
+@using BlazorTable
+
+<h1>Box Count: @bCount</h1>
+
+
+@if (boxes == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Key></Key>
+    //DROPDOWN
+<div class="row">
+    <div class="col-8 col-sm-1">
+        <label for="category">Category</label>
+        <select name="category" class="form-control selectpicker " value="@_searchCategory" @onchange="UpdateCategory">
+            @foreach (var item in Enum.GetValues(typeof(SearchCategory)))
+            {
+                <option value="@item">@item</option>
+            }
+        </select>
+    </div>
+    <div class="col-8 col-sm-2">
+        <label for="type">Filter Type</label>
+        <select name="type" class="form-control selectpicker" value="@_searchType" @onchange="UpdateType">
+            @foreach (var item in Enum.GetValues(typeof(SearchTypes)))
+            {
+                <option value="@item">@item</option>
+            }
+        </select>
+    </div>
+    <div class="col-8 col-sm-2">
+        <label for="subnet">Subnet</label>
+        <select name="subnet" class="form-control selectpicker" value="@_subnetSelection" @onchange="UpdateSubnet">
+            <option value="all">all</option>
+            @foreach (var item in _subnets)
+            {
+                <option value="@item">@item </option>
+            }
+        </select>
+    </div>
+    <div class="w-100"></div>
+    <div class="col-8 col-sm-5">
+        <input class="form-control rounded" value="@_searchText" @oninput="UpdateSearchText" placeholder="Search" style="margin-top:20px;margin-bottom:20px;" />
+    </div>
+    <div class="w-100">
+
+    </div>
+    <div class="col mb-3">
+        <div class="row pl-2">
+            <div class="p-1">
+                <button class="btn btn-success" @onclick="ResetFilters">Reset Filters</button>
+            </div>
+            <div class="p-1">
+                <a href="download/diagram" class="btn btn-info" role="button" target="_top">Download Diagram</a>
+            </div>
+            <div class="p-1">
+                <a href="download/topology" class="btn btn-info" role="button" target="_top">Download Topology</a>
+            </div>
+            <div class="p-1">
+                <CopyToClipboard Text=@string.Join("\n", filteredBoxes.Select(i=>i.Ip)) Title="Copy Host List" />
+            </div>
+        </div>
+    </div>
+
+</div>
+    //SEARCHBAR
+
+
+    <ModalDialog @ref="@_dialog"
+                 OverlayBackgroundColor="@_overlayColor"
+                 OverlayOpacity="@(_overlayOpacity/100)"
+                 Height="@_modalHeight"
+                 HandleValidSubmit="HVS"
+                 Width="@_modalWitdth"
+                 MinHeight="@_modalMinHeight"
+                 MinWidth="@_modalMinWitdth"
+                 CloseOnOverlayClick="_modalCloseOnClick"
+                 CloseOnEscapeKey="_modalCloseOnEsc"
+                 Focus="_modalFocus"
+                 Centered="_modalCentered"
+                 ShowCloseButton="_modalShowClose">
+        <!--
+        OnOpen=""
+        OnClose=""
+        OnCloseButtonClicked=""
+        OnOverlayClicked=""
+        OnEscapeKeyPress=""
+         -->
+
+        <Header>
+            @*If you want to hide Header remove the whole Header definition and set ShowCloseButton="false"*@
+            <h4>@_modalTitle</h4>
+        </Header>
+    </ModalDialog>
+
+
+    @foreach (var box in filteredBoxes)
+    {
+        <!-- MODAL DIALOG-->
+        //wtf is going on here
+
+        @switch (box.Standing)
+        {
+            case "Active":
+                _accordionCollapsedColor = "#ffb339";
+                _accordionExpandedColor = "#ffb339";
+                _accordionHoverColor = "#ffbb4d";
+
+                break;
+            case "Pwned":
+                _accordionCollapsedColor = "#4bbb4b";
+                _accordionExpandedColor = "#4bbb4b";
+                _accordionHoverColor = "#59c059";
+                break;
+            case "Comeback":
+                _accordionCollapsedColor = "#7ea0ff";
+                _accordionExpandedColor = "#7ea0ff";
+                _accordionHoverColor = "#99b4ff";
+                break;
+            case "Unrelated":
+                _accordionCollapsedColor = "#ff7b7b";
+                _accordionExpandedColor = "#ff7b7b";
+                _accordionHoverColor = "#ff9999";
+                break;
+            default:
+                _accordionCollapsedColor = "#e6e6e6";
+                _accordionExpandedColor = "#e6e6e6";
+                _accordionHoverColor = "#f2f2f2";
+                break;
+        }
+
+        <CollapsePanel style="margin-bottom: 10px;" CollapsedColor="@_accordionCollapsedColor" Animate="false" ExpandedColor="@_accordionExpandedColor" HoverColor="@_accordionHoverColor" ShowContentOverflow="true" ContentHeight="0">
+            <CollapsedHeaderContent>
+
+                <div class="p-2 mr-auto"><h5>@box.Hostname | @box.Ip</h5></div>
+
+                <div class="p-1">
+                    <button @onclick:stopPropagation="true" @onclick:preventDefault="true" class="btn btn-success p-2 align-middle" @onclick="(() => OpenDialog(box, users))">Edit</button>
+                </div>
+                <div class="p-2">
+                    <h5 class="align-middle">Assigned to @box.UserName</h5>
+                </div>
+                <div class="p-2"><span class="fa fa-lg fa-chevron-circle-down align-middle" aria-hidden="true"></span></div>
+            </CollapsedHeaderContent>
+            <ExpandedHeaderContent>
+
+                <div class="p-2 mr-auto"><h5>@box.Hostname | @box.Ip</h5></div>
+
+                <div class="p-1">
+                    <button @onclick:stopPropagation="true" @onclick:preventDefault="true" class="btn btn-success p-2 align-middle" @onclick="(() => OpenDialog(box, users))">Edit</button>
+                </div>
+                <div class="p-2">
+                    <h5 class="align-middle">Assigned to @box.UserName</h5>
+                </div>
+                <div class="p-2"><span class="fa fa-lg fa-chevron-circle-up align-middle" aria-hidden="true"></span></div>
+            </ExpandedHeaderContent>
+            <Content>
+                <div style="border: 1px solid gray; height: 100%; padding:15px;">
+                    <h4><b>Hostname: </b>@box.Hostname</h4>
+                    <h4><b>Ip: </b>@box.Ip</h4>
+                    <h4><b>Os: </b> @box.Os</h4>
+                    <h4><b>Subnet: </b>@box.Subnet</h4>
+                    <br />
+                    <Table TableItem="ServiceDTO" Items="box.Services" PageSize="15" ColumnReorder="true">
+                        <Column TableItem="ServiceDTO" Title="Port" Field="@(x => x.Port)" Sortable="true" Filterable="true" Width="10%" />
+                        <Column TableItem="ServiceDTO" Title="Name" Field="@(x => x.Name)" Sortable="true" Filterable="true" Width="20%" />
+                        <Column TableItem="ServiceDTO" Title="Protocol" Field="@(x => x.Protocol)" Sortable="true" Filterable="true" Width="20%" />
+                        <Column TableItem="ServiceDTO" Title="State" Field="@(x => x.State)" Sortable="true" Filterable="true" Width="20%">
+                        </Column>
+                        <Column TableItem="ServiceDTO" Title="Version" Field="@(x => x.Version)" Sortable="true" Filterable="true" Width="10%" />
+                        <Column TableItem="ServiceDTO" Title="Script" Field="@(x => x.Script)" Sortable="true" Filterable="true" Width="10%" Format="C" Align="Align.Right" />
+                        <Pager ShowPageNumber="true" ShowTotalCount="true" />
+                    </Table>
+                    <h4><b>Comments: </b></h4>
+                    @box.Comments
+                </div>
+            </Content>
+        </CollapsePanel>
+    }
+    @error
+
+}
+
+@code {
+    [Inject] public HttpClient Http { get; set; }
+
+    //private List<int> identifiers = new List<int>();
+    private Dictionary<int, ModalDialog> myModals = new Dictionary<int, ModalDialog>();
+    private HubConnection hubConnection;
+    //searchtext
+    private string _searchText = "";
+    //dropdown
+    private SearchTypes _searchType = SearchTypes.Contains;
+    private SearchCategory _searchCategory = SearchCategory.Port;
+    private string _subnetSelection = "all";
+
+
+    private enum SearchCategory
+    {
+        Ip,
+        Port,
+        Name,
+        Script,
+        Version,
+        Os
+    }
+    private enum SearchTypes
+    {
+        Contains,
+        Match
+    }
+
+    //dialog
+    private ModalDialog _dialog;
+    private int bCount => boxes.Count();
+    private string _overlayColor = "128,128,128";
+    private double _overlayOpacity = 50;
+    private double _modalHeight = 0;
+    private double _modalWitdth = 500;
+    private double _modalMinHeight = 100;
+    private double _modalMinWitdth = 100;
+    private bool _modalAnimate = true;
+    private bool _modalCloseOnClick = true;
+    private bool _modalCloseOnEsc = true;
+    private bool _modalFocus = true;
+    private bool _modalCentered = true;
+    private bool _modalShowClose = true;
+    private string _modalTitle = "Edit Box";
+    private string _yourName;
+
+    //Collapse
+
+    private string _collapsedColor = "DodgerBlue";
+    private string _expandedColor = "LightBlue";
+    private string _hoverColor = "LightGray";
+    private bool _isAnimated = false;
+    private bool _isCollapseDisabled = false;
+    private bool _isCollapsed = false;
+    private bool _showOverflow = false;
+    private int _height = 200;
+
+    //Accordion
+    private string _accordionCollapsedColor = "green";
+    private string _accordionExpandedColor = "lightGreen";
+    private string _accordionHoverColor = "lime";
+    private bool _isAccordionDisabled = false;
+    private int _collapseCount;
+
+    private Accordion _accordion;
+    private CollapsePanel? _activePanel;
+    private IList<BoxDTO> boxes = new List<BoxDTO>();
+    //private List<BoxDTO> upgradedBoxes = new List<BoxDTO>();
+    private List<string> users = new List<string>();
+    private List<string> _subnets => boxes.Where(x => x.Subnet != null).Select(s => s.Subnet).Distinct().ToList();
+    // private IList<BoxDTO> filteredBoxes = new List<BoxDTO>();
+    //private IList<BoxDTO> filteredBoxes = new List<BoxDTO>();
+    //private IList<ServiceDTO> services = new List<ServiceDTO>();
+    private IList<BoxDTO> boxesAdded = new List<BoxDTO>();
+    private IList<ServiceDTO> servicesAdded = new List<ServiceDTO>();
+    private IList<BoxDTO> filteredBoxes = new List<BoxDTO>();
+
+    private string error;
+    private string requestUri = "Box";
+    private string userUri = "User";
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        await hubConnection.StartAsync();
+
+        try
+        {
+            boxes = await Http.GetFromJsonAsync<IList<BoxDTO>>(requestUri);
+            //fix the ordering here
+            boxes = boxes.Where(o => o.Ip != null).OrderBy(i => Version.Parse(i.Ip)).ToList();
+            users = await Http.GetFromJsonAsync<List<string>>(userUri);
+            filteredBoxes = new List<BoxDTO>(boxes);
+
+            //identifiers = boxes.Select(s => s.BoxId).ToList();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            error = "Error Encountered";
+        };
+        hubConnection.On<BoxDTO>("BoxUpdated", t =>
+        {
+            BoxDTO updatedBox = boxes.Where(s => s.BoxId == t.BoxId).FirstOrDefault();
+            boxes[boxes.IndexOf(updatedBox)] = t;
+            Search();
+        });
+        hubConnection.On("BoxAdded", async () =>
+        {
+            boxes = await Http.GetFromJsonAsync<IList<BoxDTO>>(requestUri);
+        //fix the ordering here
+        boxes = boxes.OrderBy(o => o.Ip).ToList();
+            Search();
+        });
+        hubConnection.On<string>("UserAdded", async t =>
+        {
+            users = await Http.GetFromJsonAsync<List<string>>(userUri);
+            StateHasChanged();
+        });
+        hubConnection.On<List<BoxDTO>>("BoxUpgraded", t =>
+        {
+            foreach (var tox in t.ToList())
+            {
+                BoxDTO b = boxes.Where(x => x.Ip == tox.Ip).FirstOrDefault();
+                b.Hostname = tox.Hostname;
+                b.State = tox.State;
+            //b.Os = tox.Os;
+            b.Subnet = tox.Subnet;
+                b.Services.Clear();
+                b.Services = tox.Services;
+            }
+            Search();
+        });
+    }
+
+
+
+    public bool IsConnected =>
+    hubConnection.State == HubConnectionState.Connected;
+
+    public void Dispose()
+    {
+        _ = hubConnection.DisposeAsync();
+    }
+
+    //s => s.Services
+    //.Where(p => p.Port.ToString().Contains(_searchText)).ToList())
+    //.ToList();
+
+    private void OnCollapsed(bool state)
+    {
+        _isCollapsed = state;
+    }
+
+    private async Task OpenDialog(BoxDTO b, List<string> u)
+    {
+        await _dialog.Open(b, u);
+    }
+
+    private async Task HVS(BoxDTO bb)
+    {
+        var response = await Http.PutAsJsonAsync(requestUri, bb);
+        await _dialog.Close();
+    }
+    private async Task CloseDialog()
+    {
+        await _dialog.Close();
+    }
+
+
+    private void ResetFilters()
+    {
+        _searchText = "";
+        _searchCategory = SearchCategory.Port;
+        _searchType = SearchTypes.Contains;
+        _subnetSelection = "all";
+        Search();
+    }
+
+    private void OnInput()
+    {
+    }
+    private void UpdateSearchText(ChangeEventArgs args)
+    {
+        _searchText = args.Value.ToString();
+        Search();
+    }
+
+    private void UpdateCategory(ChangeEventArgs args)
+    {
+        _searchCategory = (SearchCategory)Enum.Parse(typeof(SearchCategory), args.Value.ToString(), true);
+        Search();
+    }
+
+    private void UpdateType(ChangeEventArgs args)
+    {
+        _searchType = (SearchTypes)Enum.Parse(typeof(SearchTypes), args.Value.ToString(), true);
+        Search();
+    }
+    private void UpdateSubnet(ChangeEventArgs args)
+    {
+        _subnetSelection = args.Value.ToString();
+        Search();
+    }
+
+
+    private void Search()
+    {
+        if (!_subnetSelection.Equals("all"))
+        {
+            filteredBoxes = boxes.Where(o => o.Subnet != null && o.Subnet.Equals(_subnetSelection)).ToList();
+
+        }
+        else
+        {
+            filteredBoxes = boxes.ToList();
+        }
+
+        if (!string.IsNullOrEmpty(_searchText))
+        {
+            if (_searchType == SearchTypes.Contains)
+            {
+                switch (_searchCategory)
+                {
+                    case SearchCategory.Ip:
+                        filteredBoxes = filteredBoxes.Where(o => o.Ip.Contains(_searchText)).ToList();
+                        break;
+                    case SearchCategory.Port:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Port.ToString().Contains(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Name:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Name != null && i.Name.ToString().Contains(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Script:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Script != null && i.Script.ToString().Contains(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Version:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Version != null && i.Version.ToString().Contains(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Os:
+                        filteredBoxes = filteredBoxes.Where(o => o.Os != null && o.Os.Contains(_searchText)).ToList();
+                        break;
+                }
+            }
+            else if (_searchType == SearchTypes.Match)
+            {
+                switch (_searchCategory)
+                {
+                    case SearchCategory.Ip:
+                        filteredBoxes = filteredBoxes.Where(o => o.Ip.Equals(_searchText)).ToList();
+                        break;
+                    case SearchCategory.Port:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Port.ToString().Equals(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Name:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Name != null && i.Name.ToString().Equals(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Script:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Script != null && i.Script.ToString().Equals(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Version:
+                        filteredBoxes = filteredBoxes.Where(o => o.Services.Any(i => i.Version != null && i.Version.ToString().Equals(_searchText))).ToList();
+                        break;
+                    case SearchCategory.Os:
+                        filteredBoxes = filteredBoxes.Where(o => o.Os != null && o.Os.Equals(_searchText)).ToList();
+                        break;
+                }
+            }
+        }
+        StateHasChanged();
+
+
+        //Console.WriteLine("hello");
+
+        /**
+        if (_searchType == SearchTypes.Contains)
+        {
+
+        }
+        else if (_searchType == SearchTypes.Match)
+        {
+
+        }
+        **/
+    }
+
+}
+

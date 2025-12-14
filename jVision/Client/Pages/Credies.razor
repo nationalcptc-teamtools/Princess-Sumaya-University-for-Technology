@@ -1,0 +1,200 @@
+﻿@page "/credentials"
+@using jVision.Shared.Models
+@using jVision.Shared
+@using jVision.Client.Shared
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IJSRuntime _JSRuntime
+
+@inject NavigationManager NavigationManager
+<div class="row">
+    <div class="col">
+        <h2>Creds</h2>
+
+        <label for="type">Credential Type</label>
+
+        <div class="col-sm-2" style="padding-left:0px;margin-bottom:20px;">
+            <select name="type" class="form-control custom-select" @bind="drop">
+                @foreach (var item in Enum.GetValues(typeof(cType)))
+                {
+                    <option value="@item">@item</option>
+                }
+            </select>
+        </div>
+        <div class="col-sm-2" style="padding-left: 0px; margin-bottom: 40px;">
+            <div class="d-flex">
+                <div style="margin-right:8px">
+                    <input placeholder="Enter Credential" @bind="_credText" class="form-control" />
+                </div>
+
+                <div>
+                    <button class="btn btn-success"
+                            @onclick="AddCred">
+                        Submit
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="d-flex flex-row">
+            <div class="p-1">
+                <h4>Usernames</h4>
+            </div>
+            <div class="p-2">
+                <CopyToClipboard Large=false Text=@string.Join("\n", _usernames) />
+            </div>
+        </div>
+        <div class="shadow boxie" style="padding:20px;">
+            @foreach (var c in creds.Where(i => i != null && i.Type.Equals("Username")))
+            {
+                <div class="d-flex">
+                    <div class="p-2 mr-auto">
+                        @c.Text
+                    </div>
+                    <div class="p-1">
+                        <button class="btn btn-sm btn-outline-danger" title="Delete Cred" @onclick="@(()=>DeleteCred(c))">
+                            <span class="oi oi-trash"></span>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+    </div>
+
+    <div class="col">
+        <div class="d-flex flex-row">
+            <div class="p1">
+                <h4>Passwords</h4>
+            </div>
+            <div class="p-2">
+                <CopyToClipboard Large=false Text=@string.Join("\n", _passwords) />
+            </div>
+        </div>
+        <div class="shadow boxie" style="padding:20px;">
+            @foreach (var c in creds.Where(i => i != null && i.Type.Equals("Password")))
+            {
+                <div class="d-flex">
+                    <div class="p-2 mr-auto">
+                        @c.Text
+                    </div>
+                    <div class="p-1">
+                        <button class="btn btn-sm btn-outline-danger" title="Delete Cred" @onclick="@(()=>DeleteCred(c))">
+                            <span class="oi oi-trash"></span>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="col">
+        <div class="d-flex flex-row">
+            <div class="p-1">
+                <h4>Pairs</h4>
+            </div>
+            <div class="p-2">
+                <CopyToClipboard Large=false Text=@string.Join("\n", _pairs) />
+            </div>
+        </div>
+        <div class="shadow boxie" style="padding:20px;">
+            @foreach (var c in creds.Where(i => i != null && i.Type.Equals("Pair")))
+            {
+                <div class="d-flex">
+                    <div class="p-2 mr-auto">
+                        @c.Text
+                    </div>
+                    <div class="p-1">
+                        <button class="btn btn-sm btn-outline-danger" title="Delete Cred" @onclick="@(()=>DeleteCred(c))">
+                            <span class="oi oi-trash"></span>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+
+
+    @code {
+        [Inject] public HttpClient Http { get; set; }
+        private List<Cred> creds = new List<Cred>();
+        private List<string> _usernames => creds.Where(i => i != null && i.Type.Equals("Username")).Select(w => w.Text).ToList();
+        private List<string> _passwords => creds.Where(i => i != null && i.Type.Equals("Password")).Select(y => y.Text).ToList();
+        private List<string> _pairs => creds.Where(i => i != null && i.Type.Equals("Pair")).Select(z => z.Text).ToList();
+        private string requestUri = "Creds";
+        private HubConnection hubConnection;
+        private string error;
+        private string _credText;
+
+        private enum cType
+        {
+            Username,
+            Password,
+            Pair
+        }
+        private cType drop = cType.Username;
+        protected override async Task OnInitializedAsync()
+        {
+            hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+            hubConnection.On<Cred>("CredAdded", t =>
+            {
+                creds.Add(t);
+                StateHasChanged();
+            });
+            hubConnection.On<int>("CredDeleted", t =>
+            {
+                Cred yo = creds.Where(i => i.CredId == t).FirstOrDefault();
+                creds.Remove(yo);
+                StateHasChanged();
+            });
+            await hubConnection.StartAsync();
+            try
+            {
+                creds = await Http.GetFromJsonAsync<List<Cred>>(requestUri);
+            }
+            catch (Exception)
+            {
+                error = "Error Encountered";
+            }
+        }
+
+        private async Task DeleteCred(Cred c)
+        {
+            string requestUriDel = $"Creds/{c.CredId}";
+            var response = await Http.DeleteAsync(requestUriDel);
+            if (!response.IsSuccessStatusCode)
+            {
+                error = response.ReasonPhrase;
+            };
+        }
+
+        private async Task AddCred()
+        {
+            Cred newCred = new Cred
+            {
+                Text = _credText,
+                Type = drop.ToString()
+            };
+            var response = await Http.PostAsJsonAsync(requestUri, newCred);
+            if (response.IsSuccessStatusCode)
+            {
+            }
+        }
+
+        public bool IsConnected =>
+        hubConnection.State == HubConnectionState.Connected;
+
+        public void Dispose()
+        {
+            _ = hubConnection.DisposeAsync();
+        }
+
+    }

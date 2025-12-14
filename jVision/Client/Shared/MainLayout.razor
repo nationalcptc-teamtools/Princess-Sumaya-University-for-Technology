@@ -1,0 +1,129 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@using jVision.Client.Services
+@using jVision.Client.Shared
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using jVision.Shared.Models
+@using Microsoft.AspNetCore.SignalR.Client
+@using Majorsoft.Blazor.Components.Notifications
+@inject IToastService _toastService
+
+@inject CustomStateProvider authStateProvider
+<AuthorizeView>
+    <Authorized>
+        <div class="page">
+            <div class="sidebar">
+                <NavMenu />
+            </div>
+            <div class="main">
+                <div class="top-row">
+                    <button type="button" class="btn btn-link ml-md-auto" @onclick="@LogoutClick">@context.User.Identity.Name Logout</button>
+                </div>
+                <div class="content px-4">
+                    @Body
+                </div>
+            </div>
+        </div>
+        <ToastContainer />
+    </Authorized>
+    <Authorizing>
+        <style>
+            body {
+                background-color: black
+            }
+        </style>
+        <h1 style="color:white">J V I S I O N</h1>
+        <img src="https://i.imgur.com/WfaJ2j2.gif" />
+    </Authorizing>
+</AuthorizeView>
+
+@code {
+    [CascadingParameter]
+    Task<AuthenticationState> AuthenticationState { get; set; }
+
+    private HubConnection hubConnection;
+    private Guid _lastToastId;
+    private string _toastText;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        await hubConnection.StartAsync();
+        hubConnection.On<List<BoxDTO>>("BoxUpgraded", async t =>
+        {
+            _toastText = "Boxes Updated: " + string.Join(", ", t.Select(i=>i.Ip));
+            await ShowCustomToast();
+        });
+        _toastService.OnToastClosed += ToastClosed;
+        _toastService.GlobalSettings.Position = ToastPositions.TopRight;
+        _toastService.GlobalSettings.RemoveToastsOnNavigation = true;
+        _toastService.GlobalSettings.Width = 420;
+        _toastService.GlobalSettings.PaddingFromSide = -1;
+        _toastService.GlobalSettings.PaddingFromTopOrBottom = -1;
+
+        ToastContainerGlobalSettings.DefaultToastsAutoCloseInSec = 300;
+    }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!(await AuthenticationState).User.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+        }
+    }
+
+    private async Task LogoutClick()
+    {
+        await authStateProvider.Logout();
+        NavigationManager.NavigateTo("/login");
+    }
+
+    private async Task ShowCustomToast()
+    {
+
+        _lastToastId = _toastService.ShowToast(new ToastSettings()
+        {
+            Content = builder => builder.AddMarkupContent(0, _toastText),
+            NotificationStyle = NotificationStyles.Normal,
+            Type = NotificationTypes.Primary,
+            //AutoCloseInSec = _toastAutoCloseInSec,
+            ShadowEffect = 5,
+            ShowCloseButton = true,
+            ShowCloseCountdownProgress = true,
+            ShowIcon = true
+        });
+
+        //_toastService.ShowToast("hello");
+    }
+
+
+    private async Task RemoveAllToasts()
+    {
+        _toastService.ClearAll();
+    }
+    private async Task RemoveLastToasts()
+    {
+        if (_lastToastId != Guid.Empty)
+        {
+            _toastService.RemoveToast(_lastToastId);
+        }
+    }
+
+
+    public bool IsConnected => hubConnection.State == HubConnectionState.Connected;
+
+    public void Dispose()
+    {
+        _toastService.OnToastClosed -= ToastClosed;
+        _toastService.ClearAll();
+        _ = hubConnection.DisposeAsync();
+    }
+
+    private void ToastClosed(Guid id)
+    {
+        if (id == _lastToastId)
+        {
+            _lastToastId = Guid.Empty;
+        }
+    }
+}

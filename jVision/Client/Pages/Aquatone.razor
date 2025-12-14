@@ -1,0 +1,85 @@
+﻿@page "/aquatone"
+@using jVision.Shared.Models
+@using System.Linq
+@using System.Net.Http.Headers
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager NavigationManager
+
+<h3>Aquatone reports</h3>
+<InputFile OnChange="HandleSelected" multiple />
+<br />
+<br />
+@if (aquaUploads == null)
+{
+    <p><em>Loading...</em></p>
+} else
+    {
+        @foreach(var a in aquaUploads)
+        {
+            <h5>Aquatone Report #@aquaUploads.IndexOf(a)</h5>
+            <a href="@a.Url" target="_blank">@a.Url</a>
+            <br />
+        }
+    }
+@code {
+
+    [Inject] public HttpClient Http { get; set; }
+    private HubConnection hubConnection;
+    private IList<AquaUpload> aquaUploads = new List<AquaUpload>();
+    private string requestUri = "upload";
+    private string error = "";
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            aquaUploads = await Http.GetFromJsonAsync<IList<AquaUpload>>(requestUri);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            error = "Error Encountered";
+        }
+        hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        await hubConnection.StartAsync();
+        hubConnection.On<AquaUpload>("AquaAdded", t =>
+        {
+            aquaUploads.Add(t);
+            StateHasChanged();
+        });
+    }
+    private async Task HandleSelected(InputFileChangeEventArgs e)
+    {
+        using var content = new MultipartFormDataContent();
+        var zipFile = e.File;
+        if (zipFile == null)
+        {
+            return;
+        }
+        else
+        {
+            try
+            {
+                var fileContent = new StreamContent(zipFile.OpenReadStream(536870912));
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(zipFile.ContentType);
+                content.Add(content: fileContent,
+                    name: "\"upload\"",
+                    fileName: zipFile.Name);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            try
+            {
+                var httpResponseMessage = await Http.PostAsync("upload", content);
+            }
+            catch
+            {
+                Console.WriteLine("error uploading");
+            }
+        }
+
+
+    }
+}

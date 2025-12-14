@@ -1,0 +1,386 @@
+﻿@using HtmlColors;
+@using jVision.Shared.Models;
+@implements IAsyncDisposable
+
+@if (_isOpened)
+{
+    <div @ref="_overlayDiv" class="bmodal"  @onkeyup="OverlayKeyPress"
+         style="background-color:rgba(0,0,0,0.5);"
+         @attributes=AllOtherAttributes>
+        <div @ref="_modal" class="bmodal-content dynamicStyle" tabindex="100" @onclick:stopPropagation="true">
+
+            @if (Header != null || ShowCloseButton)
+            {
+                <div class="bmodal-header">
+                    @Header
+                    @if (ShowCloseButton)
+                    {
+                        <button type="button" @onclick="CloseClicked" class="close"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                    }
+                </div>
+            }
+        <div class="bmodal-body">
+            <div class="container">
+                <EditForm Model="_box" OnValidSubmit="@(() => HandleValidSubmit.InvokeAsync(_box))">
+                    <p>
+                        <label>
+                            IP
+                            <InputText @bind-Value="_box.Ip" class="form-control" />
+                        </label>
+                    </p>
+                    <p>
+                        <label>
+                            Hostname
+                            <InputText @bind-Value="_box.Hostname" class="form-control" />
+                        </label>
+                    </p>
+                    <p>
+                        <label>
+                            Subnet
+                            <InputText @bind-Value="_box.Subnet" class="form-control" />
+                        </label>
+                    </p>
+                    <p>
+                        <label>
+                            OS
+                            <InputSelect @bind-Value="_box.Os" class="form-control">
+                                <option value="">Select OS</option>
+                                <option value="Windows">Windows</option>
+                                <option value="Linux">Linux</option>
+                                <option value="Mac">Mac</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
+                        </label>
+                    </p>
+                    <p>
+                        <label>
+                            User
+                            <InputSelect @bind-Value="_box.UserName" class="form-control">
+                                <option value="">Select User</option>
+                                @foreach (var user in _users)
+                                    {
+                                    <option value="@user">@user</option>
+                                    }
+                            </InputSelect>
+                        </label>
+                    </p>
+                    <p>
+                        <label>
+                            Standing
+                            <InputSelect @bind-Value="_box.Standing" class="form-control">
+                                <option value="">Choose</option>
+                                <option value="Active">Active</option>
+                                <option value="Pwned">Pwned</option>
+                                <option value="Comeback">Comeback</option>
+                                <option value="Unrelated">Unrelated</option>
+                            </InputSelect>
+                        </label>
+                    </p>
+
+                    <p>
+                        <label>
+                            Comments
+                            <InputTextArea @bind-Value="_box.Comments" class="form-control" />
+                        </label>
+                    </p>
+
+
+                    <div class="pt-2 pb-2">
+
+                        <button type="submit"
+                                class="btn btn-primary mr-auto">
+                            Save
+                        </button>
+                    </div>
+                    <div class="pt-2 pb-2">
+                        <button class="btn btn-warning ml-2" @onclick="CloseDialog">Cancel</button>
+                    </div>
+                    
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                </EditForm>                    
+                <div class="pt-2 pb-2">
+                    @if (Footer != null)
+                    {
+                        <div class="bmodal-footer">@Footer</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+    <style>
+		.fade {
+			transition: opacity @(_animationDuration.ToString().Replace(",", "."))s linear;
+		}
+		.dynamicStyle {
+			top: @(_dialogTop);
+			left: 50%;
+			min-width:@(MinWidth)px;
+			min-height:@(MinHeight)px;
+			width:@(Width == 0 ? "auto": $"{Width}px");
+			height:@(Height == 0 ? "auto": $"{Height}px");
+			transition: top @((_animationDuration).ToString().Replace(',', '.'))s ease-in-out;
+		}
+    </style>
+}
+
+@code {
+
+    //rich text edit
+
+    private BoxDTO _tempbox = new BoxDTO();
+    private bool _disposedValue;
+    private BoxDTO _box;
+    private List<string> _users;
+    private bool _isOpened = false;
+    private double _opacity = 0.8;
+    private double _animationDuration = 0.25;
+    private ElementReference _overlayDiv;
+    private ElementReference _modal;
+
+    //Overlay style
+    private string _overlayColor = "128,128,128";//gray
+    /// <summary>
+    /// Sets the style of the HTML div background-color. Use HTML specified: Color Names, RGB or with HEX values.
+    /// </summary>
+    [Parameter]
+    public string OverlayBackgroundColor
+    {
+        get => _overlayColor;
+        set => _overlayColor = new HtmlColor(value)?.RgbColor.ToRgbString();
+    }
+    /// <summary>
+    /// Opacity of the overlay div. Value should be between 0..1. Where 0 means the overlay layer is not visible.
+    /// </summary>
+    [Parameter] public double OverlayOpacity { get; set; } = 0.9;
+
+    //Close settings
+    /// <summary>
+    /// When true Modal dialog will be closed when Overlay (background) clicked. It works even if Overlay not visible (Opacity is set to 0)
+    /// </summary>
+    [Parameter] public bool CloseOnOverlayClick { get; set; } = true;
+    /// <summary>
+    /// When true Modal dialog will be closed when Esc (Escape) key pressed.
+    /// </summary>
+    [Parameter] public bool CloseOnEscapeKey { get; set; } = true;
+
+    //Size
+    /// <summary>
+    /// Modal dialog window Height in px if set to 0 Height is set auto.
+    /// </summary>
+    [Parameter] public double Height { get; set; } = 0;
+    /// <summary>
+    /// Modal dialog window Width in px if set to 0 Width is set auto.
+    /// </summary>
+    [Parameter] public double Width { get; set; } = 0;
+    /// <summary>
+    /// Modal dialog window minimum Height in px.
+    /// </summary>
+    [Parameter] public double MinHeight { get; set; } = 200;
+    /// <summary>
+    /// Modal dialog window minimum Width in px.
+    /// </summary>
+    [Parameter] public double MinWidth { get; set; } = 200;
+
+    /// <summary>
+    /// When true Modal dialog will automatically set focus to itself when it opens, and set it bact to the last focused element when it closes.
+    /// In general this should never be set to false as it makes the Modal less accessible to screen-readers, etc.
+    /// </summary>
+    [Parameter] public bool Focus { get; set; } = true;
+    /// <summary>
+    /// When true Modal dialog will appear and disappear by using smooth CSS slide and fade transitions.
+    /// </summary>
+    /// <summary>
+    /// When true Modal dialog will be vertically centered, otherwise shown near to the top. Modal dialog horizontally always centered.
+    /// </summary>
+    [Parameter] public bool Centered { get; set; } = false;
+
+    //Contents
+    /// <summary>
+    /// HTML content to show on the Modal header (top), right to the close button (if visible).
+    /// Can be any valid HTML but should be only Title text. Must not be defined if you want to leave it out. Also ShowCloseButton must be set to false.
+    /// </summary>
+    [Parameter] public RenderFragment Header { get; set; }
+    /// <summary>
+    /// Required HTML content to show on the Modal dialog. Can be any valid HTML.
+    /// </summary>
+    [Parameter] public RenderFragment Content { get; set; }
+    /// <summary>
+    /// HTML content to show on the Modal footer (bottom). Can be any valid HTML but should be only custom action buttons.
+    /// Must not be defined if you want to leave it out.
+    /// </summary>
+    [Parameter] public RenderFragment Footer { get; set; }
+    /// <summary>
+    /// When true Modal dialog will show Header (even if Header is not defined) with closed x button.
+    /// </summary>
+    [Parameter] public bool ShowCloseButton { get; set; } = true;
+
+    //Events
+    /// <summary>
+    /// Callback function called when the Modal dialog is opening.
+    /// </summary>
+    [Parameter] public EventCallback OnOpen { get; set; }
+    /// <summary>
+    /// Callback function called when the Modal dialog is closing.
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Parameter] public EventCallback<BoxDTO> HandleValidSubmit { get; set; }
+    /// <summary>
+    /// Callback function called when close x button was clicked.
+    /// </summary>
+    [Parameter] public EventCallback<MouseEventArgs> OnCloseButtonClicked { get; set; }
+    /// <summary>
+    /// Callback function called when Overlay (background) was clicked.
+    /// </summary>
+    [Parameter] public EventCallback<MouseEventArgs> OnOverlayClicked { get; set; }
+    /// <summary>
+    /// Callback function called when Esc key was pressed.
+    /// </summary>
+    [Parameter] public EventCallback<KeyboardEventArgs> OnEscapeKeyPress { get; set; }
+    /// <summary>
+    /// Callback function called when CSS transitions are ended. It will be triggered when dialog opened or closed.
+    /// </summary>
+    //[Parameter] public EventCallback<TransitionEventArgs[]> OnTransitionEnded { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object> AllOtherAttributes { get; set; }
+
+    /// <summary>
+    /// Returns true if the Modal dialog is opened, otherwise false.
+    /// </summary>
+    public bool IsOpen => _isOpened;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _dialogTop = _dialogDefaultTop;
+        Console.WriteLine("ye");
+    }
+
+
+    private async Task CloseClicked(MouseEventArgs e)
+    {
+        if (ShowCloseButton && _isOpened)
+        {
+
+            reset();
+            await Close();
+        }
+    }
+
+    private async Task CloseDialog()
+    {
+        reset();
+        await Close();
+    }
+    private void reset()
+    {
+        _box.Ip = _tempbox.Ip;
+        _box.Hostname = _tempbox.Hostname;
+        _box.Subnet = _tempbox.Subnet;
+        _box.Os = _tempbox.Os;
+        _box.UserName = _tempbox.UserName;
+        _box.Standing = _tempbox.Standing;
+        _box.Comments = _tempbox.Comments;
+
+    }
+    private async Task OverlayKeyPress(KeyboardEventArgs e)
+    {
+        if (CloseOnEscapeKey && (e.Key?.Equals("Escape", StringComparison.OrdinalIgnoreCase) ?? false) && _isOpened)
+        {
+
+            if (OnEscapeKeyPress.HasDelegate)
+            {
+                await OnEscapeKeyPress.InvokeAsync(e);
+            }
+
+            await Close();
+        }
+    }
+
+    //Dialog style animation params
+    private string _dialogTop;
+    private string _dialogDefaultTop => Centered ? "25%;" : "5%;";
+    private string GetDialogTop()
+    {
+        var height = Height;
+        if (MinHeight > height)
+        {
+            height = MinHeight;
+        }
+
+        return Centered ? "50%;" : $"calc({(Height == 0 ? 15 : 2)}% + {(int)(height / 2)}px);";
+    }
+
+
+    private KeyValuePair<ElementReference, string>[] _elementRefsWithProperties;
+    /// <summary>
+    /// When method called Modal dialog will be opened. It should be await-ed.
+    /// </summary>
+    /// <returns>Task</returns>
+    public async Task Open(BoxDTO b, List<string> u)
+    {
+        _users = u;
+        _tempbox.Ip = b.Ip;
+        _tempbox.Hostname = b.Hostname;
+        _tempbox.Subnet = b.Subnet;
+        _tempbox.Os = b.Os;
+        _tempbox.UserName = b.UserName;
+        _tempbox.Standing = b.Standing;
+        _tempbox.Comments = b.Comments;
+        _box = b;
+        _dialogTop = _dialogDefaultTop;//Reset dialog to page top
+        _isOpened = true;
+
+        StateHasChanged(); //Force UI to render
+
+        _dialogTop = GetDialogTop();
+        _opacity = 1.0; //dialog must be visible
+        await OpenInternal();
+    }
+    private async Task OpenInternal()
+    {
+
+        if (OnOpen.HasDelegate)
+        {
+            await OnOpen.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// When method called Modal dialog will be closed. It should be await-ed.
+    /// </summary>
+    /// <returns>Task</returns>
+    public async Task Close()
+    {
+        _opacity = 0; //Dialog must be hidden
+
+        await CloseInternal();
+    }
+    private async Task CloseInternal()
+    {
+
+        _isOpened = false;
+
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+
+        StateHasChanged(); //Force UI to render
+    }
+
+
+    /// <summary>
+    /// Async dispose
+    /// </summary>
+    /// <returns></returns>
+    public async ValueTask DisposeAsync()
+    {
+
+    }
+}

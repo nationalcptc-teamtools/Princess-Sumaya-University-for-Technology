@@ -1,0 +1,12 @@
+C:\Users\natha\source\repos\jVision\Shared\bin\Debug\net5.0\jVision.Shared.deps.json
+C:\Users\natha\source\repos\jVision\Shared\bin\Debug\net5.0\jVision.Shared.dll
+C:\Users\natha\source\repos\jVision\Shared\bin\Debug\net5.0\ref\jVision.Shared.dll
+C:\Users\natha\source\repos\jVision\Shared\bin\Debug\net5.0\jVision.Shared.pdb
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.AssemblyInfoInputs.cache
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.AssemblyInfo.cs
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.csproj.CoreCompileInputs.cache
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.dll
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\ref\jVision.Shared.dll
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.pdb
+C:\Users\natha\source\repos\jVision\Shared\obj\Debug\net5.0\jVision.Shared.csproj.AssemblyReference.cache
