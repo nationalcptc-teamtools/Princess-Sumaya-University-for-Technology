@@ -105,13 +105,6 @@ python3 -c "import requests; import bs4; import pwn" 2>/dev/null && \
     print_success "Python packages verified" || \
     print_warning "Some Python packages may not be fully functional"
 
-print_status "Downloading jVision client..."
-if git clone https://github.com/zoznoor23/jVision.git; then
-    chmod +x jVision/jvisionclient.py
-    print_success "jVision client downloaded to $(pwd)/jVision/jvisionclient.py"
-else
-    print_warning "Failed to download jVision client (non-critical)"
-fi
 
 print_status "Configuring SSH service..."
 if sudo systemctl enable ssh && sudo systemctl start ssh; then
