@@ -50,8 +50,8 @@ print_success "Sudo privileges confirmed"
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
 print_status "Creating dropzone directory..."
-mkdir -p ~/dropzone
-cd ~/dropzone
+mkdir -p /home/kali/dropzone
+cd /home/kali/dropzone
 print_success "Dropzone ready at ~/dropzone"
 
 print_status "Installing AD enumeration and attack tools..."
