@@ -1,10 +1,16 @@
 # windows-mobile.ps1 - PSUT VAPT Team, Android mobile kit for the Windows box.
 #
-# MOBILE/AI OWNER ONLY.  ~5.9 GB of downloads and well over 10 GB on disk once the
+# MOBILE/AI OWNER ONLY.  ~6.4 GB of downloads and well over 11 GB on disk once the
 # system images are unpacked. Nobody else should pay for that, which is the same
 # reason all.sh gates the equivalent kit behind --mobile.
 #
-# Two emulators, adb, jadx, frida, Android Studio.
+# STATIC:   apktool · jadx · dex2jar · apksigner · Ghidra
+# DYNAMIC:  two emulators (API 37.1, API 33 no-Play) · adb · frida · Android Studio
+#
+# The static half is the one the KB says to bet on: APK -> apktool/jadx -> grep ->
+# hand the endpoint list to the web team is a ~90 minute path and needs no emulator
+# at all. Ghidra is here for the native layer - .so files out of lib/arm64-v8a that
+# jadx cannot touch because they are not Dalvik bytecode.
 #
 # SPLIT OUT OF windows.ps1 ON 2026-10-11, where it was a -Mobile switch. One
 # operator needs this kit; everyone else needs Burp and Snaffler. Nothing is shared
@@ -42,6 +48,12 @@
 # turn Defender off by hand: the command-line tools zip is as much a quarantine
 # candidate as anything else in the build, and sdkmanager unpacking 3.9 GB of
 # system images with real-time scanning enabled is slow enough to look hung.
+#
+# ONE JDK SERVES EVERYTHING: temurin21. Ghidra 12 requires JDK 21+ (that floor
+# arrived in Ghidra 11.2) and the Android command-line tools require 17+, so 21
+# satisfies both and there is no second JDK to juggle. Note choco's ghidra package
+# declares NO dependencies - it will install happily and then refuse to launch if
+# no JDK 21 is present, which is why this script installs one and checks for it.
 
 [CmdletBinding()]
 param()
@@ -120,6 +132,14 @@ if (-not $mp) {
 # a hashtable lookup to reach a single constant is indirection, not structure.
 $CmdToolsUrl = 'https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip'
 $CmdToolsSha = 'e5885e2e59038c0778a85fc19f01de7ce7c567c105553f7617b936b1e0e87b2b'
+
+# dex2jar v2.4, direct from upstream because Chocolatey's package is stuck on 2.0.
+# Verified 2026-10-11 on Linux with no antivirus in the path: byte count 19105975
+# equals GitHub's reported asset size exactly, the zip passes an integrity test, and
+# it unpacks to dex-tools-v2.4/ with 17 top-level .bat launchers including
+# d2j-dex2jar.bat. The sha256 was computed from those same verified bytes.
+$Dex2JarUrl = 'https://github.com/pxb1988/dex2jar/releases/download/v2.4/dex-tools-v2.4.zip'
+$Dex2JarSha = 'ee7c45eb3c1d2474a6145d8d447e651a736a22d9664b6d3d3be5a5a817dda23a'
 
 function Get-Verified {
     <#  Download an artifact and verify it against a known sha256. Two attempts, and
@@ -204,14 +224,27 @@ if (Get-Command choco -ErrorAction SilentlyContinue) {
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' +
             [Environment]::GetEnvironmentVariable('Path','User')
 
-# jadx and adb are both real Chocolatey packages (jadx 1.5.6, adb 37.0.0). adb is
-# deliberately installed here AS WELL AS arriving with sdkmanager's platform-tools:
-# this way a box whose 4.4 GB SDK download failed still has a working adb for a
-# physical device, and jadx static analysis needs no SDK at all.
+# All five tool packages were confirmed to exist on 2026-10-11 with the versions
+# noted. ⚠️ Do NOT check these with the OData `IsLatestVersion` filter - it
+# paginates and returns a false negative; that is how temurin11 was once wrongly
+# declared missing. `https://community.chocolatey.org/packages/<id>` returning 200,
+# or FindPackagesById, is the reliable test.
+#
+#   apktool  3.0.3   - matches upstream iBotPeaches/Apktool v3.0.3 exactly
+#   jadx     1.5.x
+#   adb      37.0.0  - deliberately installed here AS WELL AS arriving with
+#                      sdkmanager's platform-tools, so a box whose 4.5 GB SDK
+#                      download failed still has a working adb for a physical
+#                      device. The static tools need no SDK at all.
+#   ghidra   12.1.4  - ~400 MB. See the Ghidra note below: it is NOT put on PATH.
+#   temurin21 21.0.9 - the single JDK. Ghidra 12 needs 21+, the Android
+#                      command-line tools need 17+, so one install covers both.
+#
 # python3 is here only because frida has no Chocolatey package and has to come from
-# pip. temurin17 is for the SDK command-line tools, which are revision 23 and need
-# JDK 17+ - see the JDK note further down.
-$ChocoPkgs = @('jadx','adb','python3','AndroidStudio','temurin17')
+# pip. dex2jar is NOT here: choco's package is pinned at 2.0 (circa 2015), which
+# predates modern multidex and DEX 039 and chokes on an API 33+ APK. Upstream v2.4
+# is fetched directly below instead.
+$ChocoPkgs = @('apktool','jadx','adb','python3','AndroidStudio','temurin21','ghidra')
 
 if (Get-Command choco -ErrorAction SilentlyContinue) {
     # One package at a time, so a single failure is reported and skipped instead
@@ -288,6 +321,47 @@ if (Test-Path (Join-Path $CmdTools 'bin\sdkmanager.bat')) {
     }
 }
 
+# --- dex2jar v2.4 --------------------------------------------------------
+# DEX -> JAR, so a decompiler that only speaks Java bytecode can read an APK.
+# jadx usually makes this unnecessary; it earns its place when jadx fails on
+# obfuscated or malformed DEX and you want a second opinion from a different
+# decompiler. Unpacked under C:\Android to keep the whole mobile kit in one
+# directory - sdkmanager ignores content it does not recognise in the SDK root.
+$Dex2Jar = Join-Path $SdkRoot 'dex2jar'
+if (Test-Path (Join-Path $Dex2Jar 'd2j-dex2jar.bat')) {
+    Write-Ok "dex2jar already at $Dex2Jar (skip)"
+} else {
+    $djZip = Join-Path $env:TEMP 'dex-tools.zip'
+    if (Get-Verified -Name 'dex2jar v2.4 (19 MB)' `
+                     -Url $Dex2JarUrl -Sha256 $Dex2JarSha -Destination $djZip) {
+        # Unpacks to a versioned 'dex-tools-v2.4\' directory; normalise it so
+        # nothing downstream has to know the version string. Same pattern the
+        # cmdline-tools use above, and the lookup HAS a failure branch: if the
+        # expected directory never appears we say so and KEEP the zip, rather
+        # than deleting the only copy and failing later for no visible reason.
+        try {
+            $stage = Join-Path $env:TEMP 'dex2jar-stage'
+            Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+            Expand-Archive -Path $djZip -DestinationPath $stage -Force -ErrorAction Stop
+            $inner = Get-ChildItem $stage -Directory |
+                     Where-Object { $_.Name -like 'dex-tools-*' } |
+                     Select-Object -First 1
+            if ($inner) {
+                if (Test-Path $Dex2Jar) { Remove-Item $Dex2Jar -Recurse -Force }
+                New-Item -ItemType Directory -Force -Path $SdkRoot | Out-Null
+                Move-Item $inner.FullName $Dex2Jar -Force
+                Remove-Item $stage,$djZip -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Ok "dex2jar -> $Dex2Jar"
+            } else {
+                Write-Err "dex2jar extracted but no dex-tools-* directory appeared under $stage"
+                Write-Err "  The zip is still at $djZip - unpack it by hand to $Dex2Jar"
+            }
+        } catch {
+            Write-Err "Could not unpack dex2jar: $($_.Exception.Message)"
+        }
+    }
+}
+
 $sdkmanager = Join-Path $CmdTools 'bin\sdkmanager.bat'
 $avdmanager = Join-Path $CmdTools 'bin\avdmanager.bat'
 
@@ -299,23 +373,28 @@ if (-not (Test-Path $sdkmanager)) {
     $env:ANDROID_SDK_ROOT = $SdkRoot
     $env:ANDROID_HOME     = $SdkRoot
 
-    # JAVA_HOME IS CHANGED ONLY FOR THESE CHILD PROCESSES. The command-line
-    # tools are revision 23 and need JDK 17+. $env:JAVA_HOME is process-scoped,
-    # so pointing it at 17 affects only the children launched below, and it is
-    # restored afterwards rather than left changed for whatever runs next.
-    # Nothing on this box needs a different JDK now that Neo4j is gone, but the
-    # machine-level JAVA_HOME is still deliberately left alone: it is not ours
-    # to repoint on a machine the organisers provided.
+    # JAVA_HOME IS CHANGED ONLY FOR THESE CHILD PROCESSES. choco's temurin
+    # package usually sets it machine-wide, but not reliably before a reboot, so
+    # find it ourselves. $env:JAVA_HOME is process-scoped, so this affects only the
+    # children launched below and is restored afterwards rather than left changed
+    # for whatever runs next. The MACHINE-level JAVA_HOME is deliberately left
+    # alone: it is not ours to repoint on a machine the organisers provided.
+    #
+    # SORTED BY PARSED VERSION, NOT BY NAME. A plain descending name sort is a
+    # string sort, which puts jdk-21.0.9 above jdk-21.0.28 because '9' > '2' - so
+    # with two JDKs installed it silently picks the older one.
     $savedJavaHome = $env:JAVA_HOME
-    $jdk17 = Get-ChildItem 'C:\Program Files\Eclipse Adoptium' -Directory -ErrorAction SilentlyContinue |
-             Where-Object { $_.Name -like 'jdk-17*' } |
-             Sort-Object Name -Descending | Select-Object -First 1
-    if ($jdk17) {
-        $env:JAVA_HOME = $jdk17.FullName
-        Write-Ok "Using $($jdk17.Name) for the Android tools (machine JAVA_HOME left alone)"
+    $jdk = Get-ChildItem 'C:\Program Files\Eclipse Adoptium' -Directory -ErrorAction SilentlyContinue |
+           Where-Object { $_.Name -like 'jdk-21*' } |
+           Sort-Object { try { [version](($_.Name -replace '^jdk-', '' -replace '[^0-9.].*$', '').Trim('.')) } catch { [version]'0.0' } } -Descending |
+           Select-Object -First 1
+    if ($jdk) {
+        $env:JAVA_HOME = $jdk.FullName
+        Write-Ok "Using $($jdk.Name) for the Android tools (machine JAVA_HOME left alone)"
     } else {
-        Write-Warn "No JDK 17 found - sdkmanager needs 17 or newer and will probably refuse to run."
-        Write-Warn "  Install it: choco install temurin17 -y   then re-run with -Mobile."
+        Write-Warn "No JDK 21 found under Eclipse Adoptium."
+        Write-Warn "  sdkmanager needs 17+ and Ghidra 12 needs 21+, so both will refuse to run."
+        Write-Warn "  Install it: choco install temurin21 -y   then re-run this script."
     }
 
     # Licences have to be accepted before anything will download, and
@@ -332,13 +411,20 @@ if (-not (Test-Path $sdkmanager)) {
     # There is no plain 'system-images;android-37.1;google_apis;x86_64'; the
     # last release with that naming is 37.0. Verified against Google's own
     # sys-img manifest on 2026-10-09, so do not "tidy" the tag away.
+    #
+    # build-tools is where APKSIGNER lives - there is no standalone apksigner
+    # package anywhere, on Chocolatey or otherwise, so this is how you get it.
+    # 37.0.0 is the newest STABLE build-tools (37.0.0-rc1/rc2 also exist and are
+    # deliberately not used), confirmed against Google's repository2-3.xml on
+    # 2026-10-11. It also brings zipalign, aapt2 and d8.
     $SdkPkgs = @(
         'platform-tools',
         'emulator',
+        'build-tools;37.0.0',
         'system-images;android-37.1;google_apis_ps16k;x86_64',
         'system-images;android-33;google_apis;x86_64'
     )
-    Write-Warn "About to download ~4.4 GB of SDK packages (two system images are 2.2 GB and 1.7 GB)."
+    Write-Warn "About to download ~4.5 GB of SDK packages (two system images are 2.2 GB and 1.7 GB)."
     $sdkFailed = @()
     foreach ($pkg in $SdkPkgs) {
         Write-Status "sdkmanager: $pkg"
@@ -399,6 +485,25 @@ if (-not (Test-Path $sdkmanager)) {
     } else {
         Write-Ok "Hypervisor present - hardware acceleration should be available"
     }
+
+    # --- where Ghidra actually went --------------------------------------
+    # CHOCO DOES NOT PUT GHIDRA ON PATH, and this is not a packaging bug - the
+    # package's install script walks the unpacked tree and writes a '.ignore' file
+    # beside every .exe, which is Chocolatey's way of saying "shim none of these".
+    # So there is no `ghidra` command, and a Get-Command check would report FAILED
+    # on a perfectly good install. It unzips under the choco lib directory and
+    # leaves a Start Menu shortcut pointing at ghidraRun.bat. Print the real path
+    # once, here, so nobody has to go looking for it on engagement morning.
+    $ghidraRun = Get-ChildItem 'C:\ProgramData\chocolatey\lib\ghidra\tools' -Recurse `
+                     -Filter 'ghidraRun.bat' -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+    if ($ghidraRun) {
+        Write-Ok "Ghidra launcher: $($ghidraRun.FullName)"
+        Write-Status "  Also on the Start Menu as 'Ghidra'. It needs JDK 21+ on PATH or JAVA_HOME."
+    } else {
+        Write-Warn "Ghidra's ghidraRun.bat was not found under C:\ProgramData\chocolatey\lib\ghidra"
+        Write-Warn "  Check whether the choco install actually succeeded above."
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -420,9 +525,28 @@ function Test-Item {
 
 # Each of these RUNS the tool rather than locating it - a jadx.bat that cannot
 # find a JVM is on PATH and still useless.
-Test-Item "jadx"  { (& jadx --version 2>&1 | Out-String) -match '[0-9]+\.[0-9]' }
-Test-Item "adb"   { (& adb version    2>&1 | Out-String) -match 'Android Debug Bridge' }
-Test-Item "frida" { (& frida --version 2>&1 | Out-String) -match '[0-9]+\.[0-9]' }
+Test-Item "jadx"    { (& jadx --version    2>&1 | Out-String) -match '[0-9]+\.[0-9]' }
+Test-Item "apktool" { (& apktool --version 2>&1 | Out-String) -match '[0-9]+\.[0-9]' }
+Test-Item "adb"     { (& adb version       2>&1 | Out-String) -match 'Android Debug Bridge' }
+Test-Item "frida"   { (& frida --version   2>&1 | Out-String) -match '[0-9]+\.[0-9]' }
+# dex2jar and apksigner are checked by PRESENCE, not by running them. Both are
+# .bat launchers that print usage to stderr and exit non-zero when given no
+# arguments, so "it ran" and "it failed" look identical - a check that cannot
+# distinguish them is worse than one that does less and says so honestly.
+Test-Item "dex2jar (d2j-dex2jar.bat)" { Test-Path 'C:\Android\dex2jar\d2j-dex2jar.bat' }
+Test-Item "apksigner (build-tools 37.0.0)" {
+    Test-Path 'C:\Android\build-tools\37.0.0\apksigner.bat'
+}
+# Ghidra is NOT on PATH by design - see the note in the install block above.
+Test-Item "Ghidra (ghidraRun.bat)" {
+    [bool](Get-ChildItem 'C:\ProgramData\chocolatey\lib\ghidra\tools' -Recurse `
+               -Filter 'ghidraRun.bat' -ErrorAction SilentlyContinue)
+}
+Test-Item "JDK 21 (java runs, and is 21+)" {
+    $j = Get-ChildItem 'C:\Program Files\Eclipse Adoptium' -Directory -ErrorAction SilentlyContinue |
+         Where-Object { $_.Name -like 'jdk-21*' } | Select-Object -First 1
+    $j -and ((& (Join-Path $j.FullName 'bin\java.exe') -version 2>&1 | Out-String) -match 'version')
+}
 Test-Item "Android Studio installed" {
     [bool](Get-ChildItem 'C:\Program Files\Android\Android Studio\bin\studio*.exe' -ErrorAction SilentlyContinue)
 }
@@ -456,7 +580,32 @@ Write-Host "+-------------------------------------------------------+" -Foregrou
 Write-Host "|   NEXT STEPS                                          |" -ForegroundColor Yellow
 Write-Host "+-------------------------------------------------------+" -ForegroundColor Yellow
 Write-Warn "- Reopen PowerShell so ANDROID_SDK_ROOT and the machine PATH are picked up."
-Write-Warn "- MOBILE KIT - open a fresh shell first, for ANDROID_SDK_ROOT."
+Write-Warn ""
+Write-Warn "- STATIC FIRST. This is the path the KB says to bet on: ~90 minutes, no"
+Write-Warn "  emulator, and it hands the web team something they can act on."
+Write-Warn "      apktool d app.apk -o app_src      # resources, AndroidManifest, smali"
+Write-Warn "      jadx -d app_jadx app.apk          # Java-ish source"
+Write-Warn "  Then grep the output for endpoints, keys and hosts and hand the list over:"
+Write-Warn '      Get-ChildItem -Recurse app_jadx | Select-String "https?://"'
+Write-Warn "  AndroidManifest.xml is where exported activities/receivers/providers and"
+Write-Warn "  android:debuggable live - read it before anything else."
+Write-Warn ""
+Write-Warn "- SECOND OPINION when jadx chokes on obfuscated or malformed DEX:"
+Write-Warn "      C:\Android\dex2jar\d2j-dex2jar.bat app.apk    # -> app-dex2jar.jar"
+Write-Warn "  then open that jar in any Java decompiler."
+Write-Warn ""
+Write-Warn "- NATIVE LAYER - Ghidra, for the .so files jadx cannot read because they"
+Write-Warn "  are not Dalvik bytecode. Unzip the APK and look in lib\arm64-v8a\."
+Write-Warn "  Launch from the Start Menu ('Ghidra'); the path is printed above."
+Write-Warn "  NOTE: there is no 'ghidra' command on PATH - that is deliberate on"
+Write-Warn "  Chocolatey's part, not a broken install. It needs JDK 21+."
+Write-Warn ""
+Write-Warn "- RESIGNING a modified APK (apktool b leaves it unsigned and uninstallable):"
+Write-Warn "      C:\Android\build-tools\37.0.0\apksigner.bat sign --ks my.keystore app.apk"
+Write-Warn "      C:\Android\build-tools\37.0.0\apksigner.bat verify --verbose app.apk"
+Write-Warn "  Make a throwaway keystore once with keytool -genkey -v -keystore my.keystore"
+Write-Warn ""
+Write-Warn "- EMULATORS - the hedge, not the plan."
 Write-Warn "  List them:  avdmanager list avd"
 Write-Warn "  Boot one:   C:\Android\emulator\emulator.exe -avd cptc-api33-noplay"
 Write-Warn "  cptc-api33-noplay is the ROOTABLE one - API 33, Google APIs, NO Play"
@@ -469,9 +618,9 @@ Write-Warn "  frida-server is deliberately NOT bundled: its version has to match
 Write-Warn "  frida-tools pip just installed, so grab the matching android-x86_64"
 Write-Warn "  build from github.com/frida/frida/releases WHILE YOU STILL HAVE EGRESS."
 Write-Warn "  cptc-api371 (API 37.1) is the current-Android target."
-Write-Warn "  Static work needs NO emulator: jadx/apktool -> grep -> hand the endpoint"
-Write-Warn "  list to the web team. Per the KB that 90-minute path is the one worth"
-Write-Warn "  betting on; the emulators are the hedge."
+Write-Warn ""
+Write-Warn "- Burp for mobile traffic is on this box via windows.ps1. Proxy the emulator"
+Write-Warn "  at it with:  emulator -avd <name> -http-proxy 127.0.0.1:8080"
 Write-Host ""
 Write-Ok "Setup log: $Transcript"
 Write-Ok "Good Luck!"
