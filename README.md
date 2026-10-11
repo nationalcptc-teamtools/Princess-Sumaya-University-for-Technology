@@ -1,1 +1,1 @@
-# PSUT Team Gear
+# PSUT Team Gear 2026
