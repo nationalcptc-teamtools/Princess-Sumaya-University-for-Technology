@@ -15,7 +15,6 @@ RUN dotnet build "jVision.Server.csproj" -c Release -o /app/build
 
 FROM build AS publish
 RUN dotnet publish "jVision.Server.csproj" -c Release -o /app/publish
-COPY Server/jvis.db /app/publish
 
 FROM base AS final
 WORKDIR /app

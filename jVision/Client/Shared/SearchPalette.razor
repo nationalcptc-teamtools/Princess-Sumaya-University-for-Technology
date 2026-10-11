@@ -1,0 +1,253 @@
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_open)
+{
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:1500;" @onclick="Close"></div>
+    <div style="position:fixed; top:80px; left:50%; transform:translateX(-50%); width:min(720px, 92vw); background:#fff; border-radius:8px; box-shadow:0 20px 40px rgba(0,0,0,0.25); z-index:1501; display:flex; flex-direction:column; max-height:70vh;"
+         @onclick:stopPropagation="true">
+        <div style="padding:12px 16px; border-bottom:1px solid #e2e8f0;">
+            <input id="jvisionSearchInput" class="form-control" placeholder="Search hosts, ports, creds, notes… (Esc to close)"
+                   @bind="_query" @bind:event="oninput"
+                   @onkeydown="OnKey" />
+        </div>
+        <div style="overflow:auto; padding:6px 0;">
+            @if (_loading)
+            {
+                <div style="padding:20px; text-align:center; color:#93a1b1;"><em>Loading…</em></div>
+            }
+            else if (_results.Count == 0)
+            {
+                <div style="padding:20px; text-align:center; color:#93a1b1;">
+                    @(string.IsNullOrEmpty(_query) ? "Type to search." : "No matches.")
+                </div>
+            }
+            else
+            {
+                @for (int i = 0; i < _results.Count; i++)
+                {
+                    var idx = i;
+                    var r = _results[idx];
+                    var isSel = idx == _cursor;
+                    <div style="display:flex; align-items:center; gap:10px; padding:8px 16px; cursor:pointer; background:@(isSel ? "#eef4ff" : "transparent");"
+                         @onmouseenter="() => _cursor = idx"
+                         @onclick="() => Go(r)">
+                        <span class="badge @KindBadge(r.Kind)" style="min-width:64px; text-align:center;">@r.Kind</span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:600;">@((MarkupString)Highlight(r.Title, _query))</div>
+                            @if (!string.IsNullOrEmpty(r.Detail))
+                            {
+                                <div style="color:#5a6674; font-size:12px;">@((MarkupString)Highlight(r.Detail, _query))</div>
+                            }
+                        </div>
+                        <span style="color:#93a1b1; font-size:11px;">@r.Href</span>
+                    </div>
+                }
+            }
+        </div>
+        <div style="padding:6px 12px; border-top:1px solid #e2e8f0; color:#93a1b1; font-size:11px;">
+            @_results.Count result(s) &middot; &uarr;&darr; navigate &middot; &crarr; open &middot; Esc close
+        </div>
+    </div>
+}
+
+@code {
+    private bool _open;
+    private string _query = "";
+    private int _cursor;
+    private bool _loading;
+    private DotNetObjectReference<SearchPalette> _self;
+
+    private List<BoxDTO> _boxes = new();
+    private List<Cred> _creds = new();
+    private List<CreatedAccount> _accounts = new();
+    private List<PivotEdge> _pivots = new();
+    private DateTime _lastLoad = DateTime.MinValue;
+
+    private record Hit(string Kind, string Title, string Detail, string Href);
+    private List<Hit> _results = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            try { await JS.InvokeVoidAsync("jvisionSearch.register", _self); } catch { }
+        }
+    }
+
+    [JSInvokable]
+    public async Task Toggle()
+    {
+        if (_open) { Close(); }
+        else { await Open(); }
+        StateHasChanged();
+    }
+
+    private async Task Open()
+    {
+        _open = true;
+        _cursor = 0;
+        _query = "";
+        // Re-fetch data if the cached snapshot is older than 30s so results
+        // reflect what the operator is actually looking at.
+        if ((DateTime.UtcNow - _lastLoad).TotalSeconds > 30)
+        {
+            _loading = true;
+            StateHasChanged();
+            await LoadAll();
+            _loading = false;
+            _lastLoad = DateTime.UtcNow;
+        }
+        Refilter();
+        // Defer focus until the input is in the DOM.
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(30);
+            try { await JS.InvokeVoidAsync("jvisionSearch.focus", "jvisionSearchInput"); } catch { }
+        });
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _query = "";
+    }
+
+    private async Task LoadAll()
+    {
+        var tasks = new Task[]
+        {
+            SafeLoad<List<BoxDTO>>("box",              v => _boxes = v ?? new()),
+            SafeLoad<List<Cred>>("creds",              v => _creds = v ?? new()),
+            SafeLoad<List<CreatedAccount>>("createdaccounts", v => _accounts = v ?? new()),
+            SafeLoad<List<PivotEdge>>("pivotedges",    v => _pivots = v ?? new()),
+        };
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task SafeLoad<T>(string uri, Action<T> assign)
+    {
+        try { assign(await Http.GetFromJsonAsync<T>(uri)); } catch { }
+    }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape":
+                Close();
+                break;
+            case "ArrowDown":
+                if (_cursor < _results.Count - 1) _cursor++;
+                break;
+            case "ArrowUp":
+                if (_cursor > 0) _cursor--;
+                break;
+            case "Enter":
+                if (_cursor >= 0 && _cursor < _results.Count) Go(_results[_cursor]);
+                break;
+            default:
+                Refilter();
+                break;
+        }
+    }
+
+    private void Refilter()
+    {
+        var q = (_query ?? "").Trim();
+        var terms = q.Length == 0
+            ? Array.Empty<string>()
+            : q.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => t.ToLowerInvariant()).ToArray();
+
+        var hits = new List<Hit>();
+        foreach (var b in _boxes)
+        {
+            var detailBits = new List<string>();
+            if (!string.IsNullOrEmpty(b.Hostname)) detailBits.Add(b.Hostname);
+            if (!string.IsNullOrEmpty(b.Os)) detailBits.Add(b.Os);
+            if (!string.IsNullOrEmpty(b.Subnet)) detailBits.Add(b.Subnet);
+            if (!string.IsNullOrEmpty(b.Stage)) detailBits.Add("stage:" + b.Stage);
+            if (b.Services != null && b.Services.Count > 0)
+                detailBits.Add(b.Services.Count + " service(s)");
+            var detail = string.Join(" · ", detailBits);
+            var haystack = string.Join(" ", new[]
+            {
+                b.Ip, b.Hostname, b.Os, b.Subnet, b.Comments, b.Stage,
+                b.Services == null ? "" : string.Join(" ", b.Services.Select(s => $"{s.Port} {s.Name} {s.Version} {s.Script}"))
+            }).ToLowerInvariant();
+            if (AllMatch(haystack, terms))
+                hits.Add(new Hit("host", b.Ip, detail, "/"));
+        }
+        foreach (var c in _creds)
+        {
+            var haystack = ($"{c.Text} {c.Source} {c.Origin} {c.Type}").ToLowerInvariant();
+            if (AllMatch(haystack, terms))
+                hits.Add(new Hit("cred", c.Text, $"{c.Origin} · {c.Source}", "/credentials"));
+        }
+        foreach (var a in _accounts)
+        {
+            var haystack = ($"{a.Username} {a.Password} {a.Ip} {a.Service} {a.Notes} {a.Privilege}").ToLowerInvariant();
+            if (AllMatch(haystack, terms))
+                hits.Add(new Hit("account", $"{a.Username} @ {a.Ip}", $"{a.Service} · {a.Privilege}", "/created-accounts"));
+        }
+        foreach (var p in _pivots)
+        {
+            var haystack = ($"{p.SourceIp} {p.TargetIp} {p.Technique} {p.Label}").ToLowerInvariant();
+            if (AllMatch(haystack, terms))
+                hits.Add(new Hit("pivot", $"{p.SourceIp} → {p.TargetIp}", $"{p.Technique} · {p.Label}", "/pivots"));
+        }
+        _results = hits.Take(50).ToList();
+        _cursor = 0;
+    }
+
+    private static bool AllMatch(string haystack, string[] terms)
+    {
+        if (terms.Length == 0) return true;
+        foreach (var t in terms) if (!haystack.Contains(t)) return false;
+        return true;
+    }
+
+    private void Go(Hit h)
+    {
+        Nav.NavigateTo(h.Href);
+        Close();
+    }
+
+    private static string KindBadge(string kind) => kind switch
+    {
+        "host"    => "badge-info",
+        "cred"    => "badge-warning",
+        "account" => "badge-success",
+        "pivot"   => "badge-danger",
+        _         => "badge-light",
+    };
+
+    private static string Highlight(string s, string q)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        var enc = System.Net.WebUtility.HtmlEncode(s);
+        var trimmed = (q ?? "").Trim();
+        if (trimmed.Length == 0) return enc;
+        var terms = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var t in terms)
+        {
+            var encT = System.Net.WebUtility.HtmlEncode(t);
+            enc = System.Text.RegularExpressions.Regex.Replace(
+                enc, System.Text.RegularExpressions.Regex.Escape(encT),
+                m => $"<mark style=\"padding:0 2px; background:#fff59d;\">{m.Value}</mark>",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        return enc;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("jvisionSearch.unregister"); } catch { }
+        _self?.Dispose();
+    }
+}

@@ -1,0 +1,101 @@
+@page "/teamips"
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using System.Threading
+@implements IDisposable
+
+<div class="d-flex align-items-center" style="gap:12px; margin-bottom:8px;">
+    <h3 style="margin:0; flex:1;">Team IPs</h3>
+    <button class="btn btn-primary" @onclick="Load">Refresh</button>
+</div>
+<p class="text-muted" style="margin-bottom:16px;">
+    Filled in automatically: whenever an operator hits jVision &mdash; web UI or
+    log sync daemon &mdash; their name and source address are recorded here.
+    Nothing to type in.
+</p>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_rows == null)
+{
+    <p><em>Loading&hellip;</em></p>
+}
+else if (_rows.Count == 0)
+{
+    <p><em>Nobody has connected yet. Addresses appear on the operator's next request.</em></p>
+}
+else
+{
+    <table class="table table-striped" style="max-width:720px;">
+        <thead>
+            <tr>
+                <th style="width:40%;">Name</th>
+                <th>IP</th>
+                <th style="width:40px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in _rows)
+            {
+                <tr>
+                    <td style="font-weight:600;">@r.Operator</td>
+                    <td>
+                        <span style="font-family:monospace;">@r.Ip</span>
+                        <small class="text-muted" style="margin-left:8px;">
+                            last seen @r.LastSeen.ToLocalTime().ToString("MMM d HH:mm")
+                        </small>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-link text-danger" title="forget this address"
+                                @onclick="() => Forget(r)">
+                            <span class="oi oi-x"></span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Inject] public HttpClient Http { get; set; }
+
+    private List<TeamIp> _rows;
+    private string _error;
+    private Timer _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        _timer = new Timer(async _ =>
+        {
+            await Load();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _rows = await Http.GetFromJsonAsync<List<TeamIp>>("teamips");
+            _error = null;
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    private async Task Forget(TeamIp r)
+    {
+        try
+        {
+            await Http.DeleteAsync($"teamips/{r.TeamIpId}");
+            await Load();
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

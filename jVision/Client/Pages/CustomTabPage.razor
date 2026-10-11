@@ -1,0 +1,122 @@
+@page "/tab/{Id:int}"
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.JSInterop
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_tab == null)
+{
+    <p><em>Loading&hellip;</em></p>
+    if (_error != null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+}
+else
+{
+    <div class="d-flex align-items-center" style="gap:12px; margin-bottom:12px;">
+        @if (!string.IsNullOrEmpty(_tab.Icon))
+        {
+            <span class="oi oi-@_tab.Icon" style="font-size:22px;"></span>
+        }
+        <h3 style="margin:0;">@_tab.Title</h3>
+        <span class="text-muted">
+            <small>updated by @_tab.UpdatedBy on @_tab.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+        </span>
+    </div>
+
+    <div class="d-flex align-items-center" style="gap:8px; margin-bottom:8px;">
+        <input class="form-control" style="max-width:280px;" placeholder="title"
+               value="@_editTitle"
+               @oninput="@(e => { _editTitle = e.Value?.ToString(); _dirty = true; })" />
+        <input class="form-control" style="max-width:180px;" placeholder="icon (open-iconic name)"
+               value="@_editIcon"
+               @oninput="@(e => { _editIcon = e.Value?.ToString(); _dirty = true; })" />
+        <button class="btn btn-primary" @onclick="Save" disabled="@(!_dirty)">
+            @(_dirty ? "Save" : "Saved")
+        </button>
+        <div style="flex:1;"></div>
+        <button class="btn btn-outline-danger" @onclick="Delete">Delete tab</button>
+    </div>
+
+    <textarea class="form-control"
+              style="height:60vh; font-family:monospace; font-size:13px; white-space:pre; overflow:auto;"
+              value="@_editContent"
+              @oninput="@(e => { _editContent = e.Value?.ToString(); _dirty = true; })"></textarea>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private CustomTab _tab;
+    private string _editTitle;
+    private string _editIcon;
+    private string _editContent;
+    private bool _dirty;
+    private string _error;
+    private HubConnection _hub;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Load();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hub = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/boxhub"))
+            .WithAutomaticReconnect()
+            .Build();
+        _hub.On("CustomTabsChanged", async () =>
+        {
+            // Someone else edited this same tab -- refresh if we're not
+            // sitting on unsaved changes (don't stomp on the user's typing).
+            if (!_dirty) { await Load(); StateHasChanged(); }
+        });
+        await _hub.StartAsync();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _tab = await Http.GetFromJsonAsync<CustomTab>($"customtabs/{Id}");
+            _editTitle = _tab.Title;
+            _editIcon = _tab.Icon;
+            _editContent = _tab.Content;
+            _dirty = false;
+        }
+        catch (Exception e)
+        {
+            _error = e.Message;
+        }
+    }
+
+    private async Task Save()
+    {
+        _tab.Title = _editTitle;
+        _tab.Icon = _editIcon;
+        _tab.Content = _editContent;
+        var resp = await Http.PutAsJsonAsync($"customtabs/{Id}", _tab);
+        if (resp.IsSuccessStatusCode) _dirty = false;
+        else _error = "save failed: " + (int)resp.StatusCode;
+    }
+
+    private async Task Delete()
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", $"delete tab \"{_tab.Title}\"?");
+        if (!ok) return;
+        var resp = await Http.DeleteAsync($"customtabs/{Id}");
+        if (resp.IsSuccessStatusCode) NavigationManager.NavigateTo("");
+        else _error = "delete failed: " + (int)resp.StatusCode;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub != null) await _hub.DisposeAsync();
+    }
+}

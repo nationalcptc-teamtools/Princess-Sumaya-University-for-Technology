@@ -1,0 +1,13 @@
+# Nmap 7.94SVN scan initiated Thu Sep 17 12:01:15 2026 as: nmap -n -T4 --min-rate 1000 --host-timeout 20m -Pn -iL hosts_simple.txt --exclude-ports 102,502,789,1911,4911,1962,2222,4840,5450,9600,20000,20001,34962,34963,34964,44818,47808 -oA temp1
+Nmap scan report for 10.0.1.20
+Host is up (0.044s latency).
+Not shown: 994 closed tcp ports (conn-refused)
+PORT     STATE SERVICE
+22/tcp   open  ssh
+3000/tcp open  ppp
+8000/tcp open  http-alt
+8080/tcp open  http-proxy
+8085/tcp open  unknown
+8180/tcp open  unknown
+
+# Nmap done at Thu Sep 17 12:01:19 2026 -- 1 IP address (1 host up) scanned in 3.76 seconds

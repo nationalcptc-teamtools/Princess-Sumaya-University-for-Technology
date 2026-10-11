@@ -1,4 +1,11 @@
-﻿<div class="top-row pl-4 navbar navbar-dark">
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+<div class="top-row pl-4 navbar navbar-dark">
     <a class="navbar-brand" href="">jVision</a>
     <button class="navbar-toggler" @onclick="ToggleNavMenu">
         <span class="navbar-toggler-icon"></span>
@@ -18,20 +25,138 @@
             </NavLink>
         </li>
         <li class="nav-item px-3">
-            <NavLink class="nav-link" href="aquatone" Match="NavLinkMatch.All">
-                <span class="oi oi-eye" aria-hidden="true"></span>Aquatone
+            <NavLink class="nav-link" href="created-accounts" Match="NavLinkMatch.All">
+                <span class="oi oi-key" aria-hidden="true"></span>Created Accounts
             </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="pivots" Match="NavLinkMatch.All">
+                <span class="oi oi-transfer" aria-hidden="true"></span>Attack Path
+            </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="logs" Match="NavLinkMatch.All">
+                <span class="oi oi-list" aria-hidden="true"></span>Logs
+            </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="scans" Match="NavLinkMatch.All">
+                <span class="oi oi-data-transfer-download" aria-hidden="true"></span>Scans
+            </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="teamips" Match="NavLinkMatch.All">
+                <span class="oi oi-people" aria-hidden="true"></span>Team IPs
+            </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="scratch" Match="NavLinkMatch.All">
+                <span class="oi oi-clipboard" aria-hidden="true"></span>Scratchpad
+            </NavLink>
+        </li>
+
+        @if (_tabs != null)
+        {
+            @foreach (var t in _tabs)
+            {
+                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="@($"tab/{t.CustomTabId}")" Match="NavLinkMatch.Prefix">
+                        <span class="oi oi-@(string.IsNullOrEmpty(t.Icon) ? "bookmark" : t.Icon)" aria-hidden="true"></span>@t.Title
+                    </NavLink>
+                </li>
+            }
+        }
+
+        @* stopPropagation only fires when paired with a bound @onclick, hence
+           the no-op handler -- otherwise the parent's ToggleNavMenu would
+           collapse the sidebar mid-typing. *@
+        <li class="nav-item px-3" @onclick="() => {}" @onclick:stopPropagation="true">
+            @if (_showCreate)
+            {
+                <div style="padding:8px 4px;">
+                    <input class="form-control form-control-sm" placeholder="tab title" style="margin-bottom:4px;"
+                           value="@_newTitle"
+                           @oninput="@(e => _newTitle = e.Value?.ToString())"
+                           @onkeydown="@(e => { if (e.Key == "Enter") _ = Create(); })" />
+                    <input class="form-control form-control-sm" placeholder="icon (e.g. star)" style="margin-bottom:4px;"
+                           value="@_newIcon"
+                           @oninput="@(e => _newIcon = e.Value?.ToString())" />
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn btn-sm btn-success" @onclick="Create"
+                                disabled="@string.IsNullOrWhiteSpace(_newTitle)">Add</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showCreate = false">Cancel</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <button class="nav-link" style="background:none; border:none; text-align:left; width:100%; cursor:pointer;"
+                        @onclick="() => _showCreate = true">
+                    <span class="oi oi-plus" aria-hidden="true"></span> New tab
+                </button>
+            }
         </li>
     </ul>
 </div>
 
 @code {
     private bool collapseNavMenu = true;
-
     private string NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private List<CustomTab> _tabs;
+    private bool _showCreate;
+    private string _newTitle = "";
+    private string _newIcon = "";
+    private HubConnection _hub;
 
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        _hub = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/boxhub"))
+            .WithAutomaticReconnect()
+            .Build();
+        _hub.On("CustomTabsChanged", async () => { await Load(); StateHasChanged(); });
+        try { await _hub.StartAsync(); } catch { /* ignore -- hub not fatal for nav */ }
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _tabs = await Http.GetFromJsonAsync<List<CustomTab>>("customtabs");
+        }
+        catch
+        {
+            _tabs = new List<CustomTab>();
+        }
+    }
+
+    private async Task Create()
+    {
+        var title = (_newTitle ?? "").Trim();
+        if (title.Length == 0) return;
+        var payload = new CustomTab { Title = title, Icon = (_newIcon ?? "").Trim(), Content = "" };
+        var resp = await Http.PostAsJsonAsync("customtabs", payload);
+        if (resp.IsSuccessStatusCode)
+        {
+            var created = await resp.Content.ReadFromJsonAsync<CustomTab>();
+            _newTitle = "";
+            _newIcon = "";
+            _showCreate = false;
+            await Load();
+            if (created != null)
+                NavigationManager.NavigateTo($"tab/{created.CustomTabId}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub != null) await _hub.DisposeAsync();
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -12,9 +13,7 @@ using jVision.Server.Models;
 using Microsoft.AspNetCore.Identity;
 using System.Threading.Tasks;
 using jVision.Server.Hubs;
-using Microsoft.Extensions.FileProviders;
-using System.IO;
-using Microsoft.AspNetCore.Http;
+using jVision.Server.Middleware;
 
 namespace jVision.Server
 {
@@ -62,12 +61,6 @@ namespace jVision.Server
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            var staticFolder = Path.Combine(Directory.GetCurrentDirectory(), "Aquastatic");
-            if (!Directory.Exists(staticFolder))
-            {
-                Directory.CreateDirectory(staticFolder);
-            }
-
             app.UseResponseCompression();
             if (env.IsDevelopment())
             {
@@ -82,22 +75,32 @@ namespace jVision.Server
             }
 
             //app.UseHttpsRedirection();
-            app.UseBlazorFrameworkFiles();
-            app.UseStaticFiles();
-            app.UseStaticFiles(new StaticFileOptions()
+            // index.html carries the inline JS shims. Served without a
+            // Cache-Control header a browser applies heuristic caching, so
+            // teammates kept running a stale copy for hours after a redeploy
+            // and even a hard-reload didn't always beat it.
+            var staticFiles = new StaticFileOptions
             {
-                FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), @"Aquastatic")),
-                RequestPath = new PathString("/Aquastatic")
-            });
+                OnPrepareResponse = ctx =>
+                {
+                    if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                        ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                }
+            };
+            app.UseBlazorFrameworkFiles();
+            app.UseStaticFiles(staticFiles);
             app.UseRouting();
             app.UseAuthentication();
             app.UseAuthorization();
+            // After UseAuthentication so User.Identity is populated; static
+            // files are already served above and never reach it.
+            app.UseMiddleware<OperatorIpMiddleware>();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapRazorPages();
                 endpoints.MapControllers();
                 endpoints.MapHub<BoxHub>("/boxhub");
-                endpoints.MapFallbackToFile("index.html");
+                endpoints.MapFallbackToFile("index.html", staticFiles);
             });
         }
     }

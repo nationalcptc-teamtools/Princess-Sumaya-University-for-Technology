@@ -1,0 +1,218 @@
+@page "/pivots"
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="d-flex align-items-center" style="gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+    <h3 style="margin:0; flex:1;">Attack Path</h3>
+    <button class="btn btn-primary" @onclick="Load">Refresh</button>
+
+    <div class="btn-group" role="group" aria-label="Attack-narrative map">
+        <a href="download/attack-path.svg" class="btn btn-danger" role="button" target="_top"
+           title="numbered kill-chain map, ready to drop into the report attack narrative">
+            <span class="oi oi-data-transfer-download"></span> Attack path (SVG)
+        </a>
+        <button class="btn btn-danger" @onclick="DownloadAttackPathPng"
+                title="attack narrative rasterised to PNG in the browser">
+            <span class="oi oi-image"></span> PNG
+        </button>
+    </div>
+
+    <div class="btn-group" role="group" aria-label="Plain topology">
+        <a href="download/topology.svg" class="btn btn-secondary" role="button" target="_top"
+           title="network topology (no pivot overlay)">
+            <span class="oi oi-data-transfer-download"></span> Topology (SVG)
+        </a>
+        <button class="btn btn-secondary" @onclick="DownloadTopologyPng"
+                title="topology rasterised to PNG in the browser">
+            <span class="oi oi-image"></span> PNG
+        </button>
+    </div>
+
+    <a href="download/topology.drawio" class="btn btn-outline-info" role="button" target="_top"
+       title="editable draw.io file">
+        <span class="oi oi-pencil"></span> drawio
+    </a>
+</div>
+<p class="text-muted" style="margin-bottom:16px;">
+    Record every lateral move &mdash; source, target, and how you did it. Each row becomes a
+    labeled arrow on the network topology, and turns into the story of the engagement in the report.
+</p>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+        <h5 class="card-title" style="margin-bottom:12px;">Add a pivot</h5>
+        <div class="row g-2" style="row-gap:6px;">
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_draft.SourceIp">
+                    <option value="">source IP…</option>
+                    @foreach (var ip in _boxIps) { <option value="@ip">@ip</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_draft.TargetIp">
+                    <option value="">target IP…</option>
+                    @foreach (var ip in _boxIps) { <option value="@ip">@ip</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" @bind="_draft.Technique">
+                    <option value="creds">creds</option>
+                    <option value="exploit">exploit</option>
+                    <option value="rce">rce</option>
+                    <option value="session">session</option>
+                    <option value="relay">relay</option>
+                    <option value="phish">phish</option>
+                    <option value="other">other</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input class="form-control form-control-sm" placeholder="label (e.g. admin:Password1, CVE-…)"
+                       @bind="_draft.Label" />
+            </div>
+            <div class="col-md-1">
+                <button class="btn btn-sm btn-success w-100"
+                        @onclick="Add"
+                        disabled="@(string.IsNullOrWhiteSpace(_draft.SourceIp) || string.IsNullOrWhiteSpace(_draft.TargetIp) || _draft.SourceIp == _draft.TargetIp)">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_rows == null)
+{
+    <p><em>Loading&hellip;</em></p>
+}
+else if (_rows.Count == 0)
+{
+    <p><em>No pivots recorded yet.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Source</th>
+                <th></th>
+                <th>Target</th>
+                <th>Technique</th>
+                <th>Label</th>
+                <th>Recorded</th>
+                <th style="width:40px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in _rows)
+            {
+                <tr>
+                    <td style="font-family:monospace; font-weight:600;">@e.SourceIp</td>
+                    <td style="color:#4b6fbb; font-weight:700;">&rarr;</td>
+                    <td style="font-family:monospace; font-weight:600;">@e.TargetIp</td>
+                    <td><span class="badge bg-secondary">@e.Technique</span></td>
+                    <td>@e.Label</td>
+                    <td>
+                        <small class="text-muted">
+                            by @e.CreatedBy<br />
+                            @e.CreatedAt.ToLocalTime().ToString("MMM d HH:mm")
+                        </small>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-link text-danger" title="delete"
+                                @onclick="() => Delete(e)">
+                            <span class="oi oi-x"></span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<PivotEdge> _rows;
+    private PivotEdge _draft = new() { Technique = "creds" };
+    private List<string> _boxIps = new();
+    private string _error;
+    private HubConnection _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        await LoadBoxIps();
+        _hub = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/boxhub"))
+            .WithAutomaticReconnect()
+            .Build();
+        _hub.On("PivotEdgesChanged", async () => { await Load(); await InvokeAsync(StateHasChanged); });
+        _hub.On("BoxAdded", async () => { await LoadBoxIps(); await InvokeAsync(StateHasChanged); });
+        try { await _hub.StartAsync(); } catch { }
+    }
+
+    private async Task Load()
+    {
+        try { _rows = await Http.GetFromJsonAsync<List<PivotEdge>>("pivotedges"); _error = null; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task LoadBoxIps()
+    {
+        try
+        {
+            var boxes = await Http.GetFromJsonAsync<List<BoxDTO>>("box");
+            _boxIps = boxes.Where(b => !string.IsNullOrWhiteSpace(b.Ip))
+                           .Select(b => b.Ip)
+                           .OrderBy(ip => Version.TryParse(ip, out var v) ? v : new Version(0, 0, 0, 0))
+                           .ToList();
+        }
+        catch { _boxIps = new List<string>(); }
+    }
+
+    private async Task Add()
+    {
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("pivotedges", _draft);
+            if (resp.IsSuccessStatusCode)
+            {
+                _draft = new PivotEdge { Technique = _draft.Technique };
+                await Load();
+            }
+            else { _error = $"add failed: {(int)resp.StatusCode}"; }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete(PivotEdge e)
+    {
+        try { await Http.DeleteAsync($"pivotedges/{e.PivotEdgeId}"); await Load(); }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task DownloadTopologyPng()
+    {
+        var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HHmm");
+        try { await JS.InvokeAsync<bool>("topologyPng.download", "download/topology.svg", $"topology-{stamp}.png", 2); }
+        catch (Exception ex) { Console.WriteLine("PNG export failed: " + ex); }
+    }
+
+    private async Task DownloadAttackPathPng()
+    {
+        var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HHmm");
+        try { await JS.InvokeAsync<bool>("topologyPng.download", "download/attack-path.svg", $"attack-path-{stamp}.png", 2); }
+        catch (Exception ex) { Console.WriteLine("PNG export failed: " + ex); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub != null) await _hub.DisposeAsync();
+    }
+}

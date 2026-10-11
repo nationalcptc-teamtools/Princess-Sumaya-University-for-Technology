@@ -24,6 +24,15 @@ namespace jVision.Server.Controllers
             _hubContext = hubContext;
         }
 
+        // Every cred must say where it came from. Enforced here as well as in
+        // the UI so a direct POST can't slip an unclassified cred into the list.
+        // "Created" is the origin used when the Created Accounts tab auto-mirrors
+        // an account into Creds.
+        public static readonly string[] Origins = { "Web", "AD", "Others", "Created" };
+
+        private static string NormalizeOrigin(string o) =>
+            Origins.FirstOrDefault(v => string.Equals(v, (o ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
+
         // GET: api/Creds
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Cred>>> GetCred()
@@ -78,17 +87,67 @@ namespace jVision.Server.Controllers
             return NoContent();
         }
         **/
-        // POST: api/Creds
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // POST: api/Creds  (or a list, for bulk paste)
         [HttpPost]
-        public async Task<ActionResult<Cred>> PostCred(Cred cred)
+        public async Task<IActionResult> PostCred(Cred cred)
         {
+            var origin = NormalizeOrigin(cred?.Origin);
+            if (origin == null)
+                return BadRequest("origin required: Web, AD or Others");
+            cred.Origin = origin;
+
+            // Dedup on (Type, Text, Origin) -- catches paste-the-same-list-twice,
+            // while still letting the same cred be recorded for both Web and AD.
+            if (await _context.Cred.AnyAsync(c => c.Type == cred.Type && c.Text == cred.Text && c.Origin == origin))
+            {
+                return StatusCode(200);
+            }
             _context.Cred.Add(cred);
             await _context.SaveChangesAsync();
-
-            //return CreatedAtAction("GetCred", new { id = cred.CredId }, cred);
             await _hubContext.Clients.All.CredAdded(cred);
             return StatusCode(200);
+        }
+
+        // POST /Creds/bulk  -- accept a list of already-typed creds (usually
+        // the user pasted many lines at once). Dedups per row.
+        [HttpPost("bulk")]
+        public async Task<ActionResult<int>> PostBulk(List<Cred> creds)
+        {
+            if (creds == null || creds.Count == 0) return 0;
+
+            int added = 0;
+            foreach (var c in creds)
+            {
+                if (string.IsNullOrWhiteSpace(c.Text)) continue;
+
+                var origin = NormalizeOrigin(c.Origin);
+                if (origin == null)
+                    return BadRequest("origin required: Web, AD or Others");
+                c.Origin = origin;
+
+                if (await _context.Cred.AnyAsync(x => x.Type == c.Type && x.Text == c.Text && x.Origin == origin))
+                    continue;
+                _context.Cred.Add(c);
+                await _context.SaveChangesAsync();
+                await _hubContext.Clients.All.CredAdded(c);
+                added++;
+            }
+            return added;
+        }
+
+        // PUT /Creds/{id}  -- currently only used to toggle Verified and edit
+        // Source in place.
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutCred(int id, Cred cred)
+        {
+            var existing = await _context.Cred.FindAsync(id);
+            if (existing == null) return NotFound();
+
+            existing.Verified = cred.Verified;
+            if (cred.Source != null) existing.Source = cred.Source;
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.CredUpdated(existing);
+            return NoContent();
         }
 
         // DELETE: api/Creds/5

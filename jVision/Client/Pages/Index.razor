@@ -13,6 +13,43 @@
 
 <h1>Box Count: @bCount</h1>
 
+@* Team-alias legend: the exported zip/xlsx anonymize operator names to
+   memberN. This chart tells everyone on the team who is who so no one has
+   to guess when reading the deliverable. *@
+<details style="margin: 8px 0 14px 0; padding: 8px 12px; background:#f4f6f8; border:1px solid #dee1e5; border-radius:4px;">
+    <summary style="cursor:pointer; font-weight:600;">
+        Team member aliases
+        @if (_aliasMap != null && _aliasMap.Count > 0)
+        {
+            <span class="badge badge-info" style="margin-left:6px;">@_aliasMap.Count</span>
+        }
+    </summary>
+    @if (_aliasMap == null)
+    {
+        <p class="text-muted" style="margin:6px 0 0 0;"><em>Loading&hellip;</em></p>
+    }
+    else if (_aliasMap.Count == 0)
+    {
+        <p class="text-muted" style="margin:6px 0 0 0;"><em>No operator names on file yet.</em></p>
+    }
+    else
+    {
+        <table class="table table-sm" style="margin:6px 0 0 0; width:auto; background:#fff;">
+            <thead>
+                <tr><th style="min-width:90px;">Alias</th><th>Real name</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var kv in _aliasMap)
+                {
+                    <tr>
+                        <td style="font-family:monospace; font-weight:600;">@kv.Alias</td>
+                        <td>@kv.Name</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</details>
 
 @if (boxes == null)
 {
@@ -67,10 +104,44 @@ else
                 <a href="download/diagram" class="btn btn-info" role="button" target="_top">Download Diagram</a>
             </div>
             <div class="p-1">
-                <a href="download/topology" class="btn btn-info" role="button" target="_top">Download Topology</a>
+                <a href="download/topology" class="btn btn-info" role="button" target="_top">Download Topology (drawio csv)</a>
+            </div>
+            <div class="p-1">
+                <div class="btn-group" role="group" aria-label="Topology with arrows">
+                    <a href="download/topology.svg" class="btn btn-info" role="button" target="_top"
+                       title="topology.svg with pivot arrows overlaid">With arrows (SVG)</a>
+                    <button class="btn btn-info" @onclick="() => DownloadTopologyPng(true)"
+                            title="topology with arrows, rasterised to PNG">PNG</button>
+                </div>
+            </div>
+            <div class="p-1">
+                <div class="btn-group" role="group" aria-label="Plain topology">
+                    <a href="download/topology.svg?pivots=false" class="btn btn-secondary" role="button" target="_top"
+                       title="topology.svg without pivot arrows">Plain (SVG)</a>
+                    <button class="btn btn-secondary" @onclick="() => DownloadTopologyPng(false)"
+                            title="plain topology rasterised to PNG">PNG</button>
+                </div>
+            </div>
+            <div class="p-1">
+                <a href="download/topology.drawio" class="btn btn-info" role="button" target="_top">Download Topology (drawio)</a>
+            </div>
+            <div class="p-1">
+                <a href="download/all" class="btn btn-primary" role="button" target="_top"
+                   title="Zip of every jVision artifact (boxes, logs, creds, scans, topology, custom tabs) for uploading to Drive">
+                    <span class="oi oi-cloud-download" aria-hidden="true"></span>
+                    Download Everything (zip)
+                </a>
             </div>
             <div class="p-1">
                 <CopyToClipboard Text=@string.Join("\n", filteredBoxes.Select(i=>i.Ip)) Title="Copy Host List" />
+            </div>
+            <div class="p-1 ml-auto">
+                <button class="btn btn-danger"
+                        title="Nukes every host from the database. Use this if host discovery produced garbage."
+                        @onclick="DeleteAllBoxes">
+                    <span class="oi oi-trash" aria-hidden="true"></span>
+                    Delete All Hosts
+                </button>
             </div>
         </div>
     </div>
@@ -105,6 +176,138 @@ else
             <h4>@_modalTitle</h4>
         </Header>
     </ModalDialog>
+
+    @if (_uploadedForIp != null)
+    {
+        <div style="position:fixed; inset:0; z-index:2000;
+                    background:rgba(15,20,30,0.55);
+                    display:flex; align-items:flex-start; justify-content:center;
+                    padding:40px 24px; overflow-y:auto;"
+             @onclick="CloseUploadedPopup">
+            <div style="width:min(1100px, 100%);
+                        background:#fff; color:#222;
+                        border-radius:10px;
+                        box-shadow:0 20px 60px rgba(0,0,0,0.35);
+                        display:flex; flex-direction:column;
+                        max-height:calc(100vh - 80px); overflow:hidden;"
+                 @onclick:stopPropagation="true">
+
+                <div style="display:flex; align-items:center; gap:12px;
+                            padding:14px 20px; background:#2c3e50; color:#fff;
+                            border-top-left-radius:10px; border-top-right-radius:10px;">
+                    <span class="oi oi-cloud-upload" style="font-size:18px;"></span>
+                    <h4 style="margin:0; flex:1; font-weight:500;">
+                        Uploaded scans for <span style="opacity:0.9; font-family:monospace;">@_uploadedForIp</span>
+                    </h4>
+                    <button type="button" @onclick="CloseUploadedPopup"
+                            style="background:none; border:none; color:#fff;
+                                   font-size:26px; line-height:1; cursor:pointer;
+                                   padding:0 6px; opacity:0.8;">&times;</button>
+                </div>
+
+                <div style="flex:1; overflow:auto; padding:20px; background:#f8f9fb;">
+                    @if (_uploadedScans == null)
+                    {
+                        <p style="color:#666;"><em>Loading&hellip;</em></p>
+                    }
+                    else if (_uploadedScans.Count == 0)
+                    {
+                        <p style="color:#666;"><em>No uploaded scans for this IP.</em></p>
+                    }
+                    else
+                    {
+                        @foreach (var scan in _uploadedScans)
+                        {
+                            <div style="margin-bottom:20px; background:#fff;
+                                        border:1px solid #dfe3e8; border-radius:8px;
+                                        box-shadow:0 1px 3px rgba(0,0,0,0.04);
+                                        overflow:hidden;">
+                                <div style="padding:12px 16px; background:#eef2f7;
+                                            border-bottom:1px solid #dfe3e8;">
+                                    <div style="display:flex; gap:12px; align-items:baseline;
+                                                flex-wrap:wrap;">
+                                        <strong style="color:#2c3e50;">@scan.FileName</strong>
+                                        <span style="color:#5c6b7a;">by <b>@scan.Uploader</b></span>
+                                        <span style="color:#7a8794;">
+                                            <small>@scan.UploadedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                                        </span>
+                                        @if (!string.IsNullOrEmpty(scan.Hostname))
+                                        {
+                                            <span style="color:#7a8794;"><small>hostname: <code>@scan.Hostname</code></small></span>
+                                        }
+                                        <span style="flex:1;"></span>
+                                        <a href="scans/@scan.ScanUploadId" target="_blank"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <span class="oi oi-data-transfer-download"
+                                                  style="font-size:11px; margin-right:4px;"></span>
+                                            download xml
+                                        </a>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(scan.Note))
+                                    {
+                                        <div style="color:#5c6b7a; margin-top:4px;"><small>@scan.Note</small></div>
+                                    }
+                                </div>
+                                <div style="padding:0;">
+                                    @if (scan.Services == null || scan.Services.Count == 0)
+                                    {
+                                        <p style="color:#7a8794; padding:12px 16px; margin:0;">
+                                            <em>No services parsed.</em>
+                                        </p>
+                                    }
+                                    else
+                                    {
+                                        <div style="overflow-x:auto;">
+                                            <table class="table table-sm table-striped table-hover"
+                                                   style="margin:0; background:#fff;">
+                                                <thead style="background:#f6f8fa;">
+                                                    <tr>
+                                                        <th style="width:80px;">Port</th>
+                                                        <th style="width:80px;">Proto</th>
+                                                        <th style="width:80px;">State</th>
+                                                        <th style="width:140px;">Service</th>
+                                                        <th style="width:180px;">Version</th>
+                                                        <th>Script</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var s in scan.Services.OrderBy(x => x.Port))
+                                                    {
+                                                        <tr>
+                                                            <td style="font-family:monospace;">@s.Port</td>
+                                                            <td>@s.Protocol</td>
+                                                            <td>
+                                                                <span style="padding:2px 8px; border-radius:10px;
+                                                                             font-size:11px; font-weight:600;
+                                                                             color:#fff;
+                                                                             background:@StateColor(s.State);">
+                                                                    @s.State
+                                                                </span>
+                                                            </td>
+                                                            <td>@s.Name</td>
+                                                            <td style="color:#5c6b7a;"><small>@s.Version</small></td>
+                                                            <td>
+                                                                @if (!string.IsNullOrEmpty(s.Script))
+                                                                {
+                                                                    <pre style="white-space:pre-wrap; margin:0;
+                                                                                font-size:11px; color:#374151;
+                                                                                max-height:120px; overflow:auto;">@s.Script</pre>
+                                                                }
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    }
 
 
     @foreach (var box in filteredBoxes)
@@ -142,7 +345,7 @@ else
                 break;
         }
 
-        <CollapsePanel style="margin-bottom: 10px;" CollapsedColor="@_accordionCollapsedColor" Animate="false" ExpandedColor="@_accordionExpandedColor" HoverColor="@_accordionHoverColor" ShowContentOverflow="true" ContentHeight="0">
+        <CollapsePanel style="margin-bottom: 10px;" CollapsedColor="@_accordionCollapsedColor" Animate="false" ExpandedColor="@_accordionExpandedColor" HoverColor="@_accordionHoverColor" ShowContentOverflow="true" ContentHeight="0" OnCollapseChanged="@(collapsed => OnBoxCollapseChanged(box.BoxId, collapsed))">
             <CollapsedHeaderContent>
 
                 <div class="p-2 mr-auto"><h5>@box.Hostname | @box.Ip</h5></div>
@@ -150,6 +353,25 @@ else
                 <div class="p-1">
                     <button @onclick:stopPropagation="true" @onclick:preventDefault="true" class="btn btn-success p-2 align-middle" @onclick="(() => OpenDialog(box, users))">Edit</button>
                 </div>
+                <div class="p-1">
+                    <button @onclick:stopPropagation="true" @onclick:preventDefault="true"
+                            class="btn btn-danger p-2 align-middle"
+                            title="delete this host"
+                            @onclick="(() => DeleteBox(box))">
+                        <span class="oi oi-trash" aria-hidden="true"></span>
+                    </button>
+                </div>
+                @if (box.HasUploadedScans)
+                {
+                    <div class="p-1">
+                        <button @onclick:stopPropagation="true" @onclick:preventDefault="true"
+                                class="btn btn-primary p-2 align-middle"
+                                title="show scans uploaded for this IP"
+                                @onclick="(() => OpenUploadedPopup(box.Ip))">
+                            <span class="oi oi-cloud-upload"></span> Uploaded
+                        </button>
+                    </div>
+                }
                 <div class="p-2">
                     <h5 class="align-middle">Assigned to @box.UserName</h5>
                 </div>
@@ -159,9 +381,29 @@ else
 
                 <div class="p-2 mr-auto"><h5>@box.Hostname | @box.Ip</h5></div>
 
+                @PresenceChip(box.BoxId)
                 <div class="p-1">
                     <button @onclick:stopPropagation="true" @onclick:preventDefault="true" class="btn btn-success p-2 align-middle" @onclick="(() => OpenDialog(box, users))">Edit</button>
                 </div>
+                <div class="p-1">
+                    <button @onclick:stopPropagation="true" @onclick:preventDefault="true"
+                            class="btn btn-danger p-2 align-middle"
+                            title="delete this host"
+                            @onclick="(() => DeleteBox(box))">
+                        <span class="oi oi-trash" aria-hidden="true"></span>
+                    </button>
+                </div>
+                @if (box.HasUploadedScans)
+                {
+                    <div class="p-1">
+                        <button @onclick:stopPropagation="true" @onclick:preventDefault="true"
+                                class="btn btn-primary p-2 align-middle"
+                                title="show scans uploaded for this IP"
+                                @onclick="(() => OpenUploadedPopup(box.Ip))">
+                            <span class="oi oi-cloud-upload"></span> Uploaded
+                        </button>
+                    </div>
+                }
                 <div class="p-2">
                     <h5 class="align-middle">Assigned to @box.UserName</h5>
                 </div>
@@ -241,6 +483,63 @@ else
     private string _modalTitle = "Edit Box";
     private string _yourName;
 
+    [CascadingParameter] Task<AuthenticationState> AuthenticationState { get; set; }
+
+    // (Presence) map of boxId -> list of user names currently viewing.
+    private Dictionary<int, List<string>> _presence = new();
+
+    private RenderFragment PresenceChip(int boxId) => builder =>
+    {
+        if (!_presence.TryGetValue(boxId, out var users) || users == null || users.Count == 0) return;
+        // Filter yourself out — showing "you're here" is noise.
+        var others = users.Where(u => !string.Equals(u, _yourName, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (others.Count == 0) return;
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "p-2");
+        builder.AddAttribute(2, "title", string.Join(", ", others) + " viewing this box");
+        int i = 10;
+        foreach (var u in others.Take(4))
+        {
+            var initials = string.IsNullOrEmpty(u) ? "?" : (u.Length >= 2 ? u.Substring(0, 2) : u).ToUpperInvariant();
+            builder.OpenElement(i++, "span");
+            builder.AddAttribute(i++, "style", "display:inline-block; width:26px; height:26px; border-radius:50%; background:#4b6fbb; color:#fff; text-align:center; line-height:26px; font-size:11px; font-weight:700; margin-right:-6px; border:2px solid #fff;");
+            builder.AddContent(i++, initials);
+            builder.CloseElement();
+        }
+        if (others.Count > 4)
+        {
+            builder.OpenElement(i++, "span");
+            builder.AddAttribute(i++, "style", "margin-left:12px; color:#4b6fbb; font-weight:600;");
+            builder.AddContent(i++, $"+{others.Count - 4}");
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private HashSet<int> _expandedBoxes = new();
+
+    private async Task OnBoxCollapseChanged(int boxId, bool collapsed)
+    {
+        // CollapsePanel fires `collapsed` as the *new* state (true = collapsed
+        // after this event). So on true we leave the presence group, on false
+        // we join it.
+        if (hubConnection == null) return;
+        try
+        {
+            if (collapsed)
+            {
+                _expandedBoxes.Remove(boxId);
+                await hubConnection.SendAsync("LeaveBox", boxId);
+            }
+            else
+            {
+                _expandedBoxes.Add(boxId);
+                await hubConnection.SendAsync("JoinBox", boxId, _yourName ?? "anon");
+            }
+        }
+        catch { /* hub not ready — presence is nice-to-have */ }
+    }
+
     //Collapse
 
     private string _collapsedColor = "DodgerBlue";
@@ -275,9 +574,25 @@ else
     private string error;
     private string requestUri = "Box";
     private string userUri = "User";
+
+    public class AliasEntry { public string Alias { get; set; } public string Name { get; set; } }
+    private List<AliasEntry> _aliasMap;
+
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var authState = AuthenticationState != null ? await AuthenticationState : null;
+            _yourName = authState?.User?.Identity?.Name;
+        }
+        catch { /* auth optional for hub connect */ }
+
         hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        hubConnection.On<int, List<string>>("BoxPresenceChanged", (boxId, users) =>
+        {
+            _presence[boxId] = users ?? new List<string>();
+            InvokeAsync(StateHasChanged);
+        });
         await hubConnection.StartAsync();
 
         try
@@ -295,6 +610,8 @@ else
             Console.WriteLine(e);
             error = "Error Encountered";
         };
+
+        _ = LoadAliasMap();
         hubConnection.On<BoxDTO>("BoxUpdated", t =>
         {
             BoxDTO updatedBox = boxes.Where(s => s.BoxId == t.BoxId).FirstOrDefault();
@@ -327,6 +644,19 @@ else
             }
             Search();
         });
+        hubConnection.On<int>("BoxDeleted", boxId =>
+        {
+            // Drop locally so every open client reflects the delete without
+            // waiting for a re-fetch. Search() re-applies the current filters.
+            var gone = boxes.FirstOrDefault(x => x.BoxId == boxId);
+            if (gone != null) boxes.Remove(gone);
+            Search();
+        });
+        hubConnection.On("BoxesCleared", () =>
+        {
+            boxes.Clear();
+            Search();
+        });
     }
 
 
@@ -353,10 +683,132 @@ else
         await _dialog.Open(b, u);
     }
 
+    // Per-host delete. Confirm against the browser so a mis-click can't wipe a
+    // host silently -- the hub broadcast then removes the row for every client.
+    private async Task DeleteBox(BoxDTO b)
+    {
+        if (b == null) return;
+        var label = string.IsNullOrEmpty(b.Hostname) ? b.Ip : $"{b.Hostname} ({b.Ip})";
+        var ok = await _JSRuntime.InvokeAsync<bool>("confirm", $"Delete host {label}? This cannot be undone.");
+        if (!ok) return;
+        try
+        {
+            var resp = await Http.DeleteAsync($"Box/{b.BoxId}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                await _JSRuntime.InvokeVoidAsync("alert", $"Delete failed: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                return;
+            }
+            // Optimistic local removal in case the SignalR broadcast is slow;
+            // the BoxDeleted handler is idempotent on an already-removed row.
+            var gone = boxes.FirstOrDefault(x => x.BoxId == b.BoxId);
+            if (gone != null) boxes.Remove(gone);
+            Search();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            await _JSRuntime.InvokeVoidAsync("alert", "Delete failed: " + e.Message);
+        }
+    }
+
+    // Nuke-every-host. Two-step confirm so this stays hard to trigger by accident.
+    private async Task DeleteAllBoxes()
+    {
+        var count = boxes?.Count ?? 0;
+        var ok = await _JSRuntime.InvokeAsync<bool>(
+            "confirm", $"Delete ALL {count} hosts? This cannot be undone.");
+        if (!ok) return;
+        try
+        {
+            var resp = await Http.DeleteAsync("Box/all");
+            if (!resp.IsSuccessStatusCode)
+            {
+                await _JSRuntime.InvokeVoidAsync("alert", $"Delete-all failed: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                return;
+            }
+            boxes.Clear();
+            Search();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            await _JSRuntime.InvokeVoidAsync("alert", "Delete-all failed: " + e.Message);
+        }
+    }
+
+    // "Uploaded" button popup state -- kept fully separate from the down-arrow
+    // expand view so the box's own services table stays uncluttered.
+    private string _uploadedForIp;
+    private List<UploadedScanView> _uploadedScans;
+
+    private async Task OpenUploadedPopup(string ip)
+    {
+        _uploadedForIp = ip;
+        _uploadedScans = null;
+        try
+        {
+            _uploadedScans = await Http.GetFromJsonAsync<List<UploadedScanView>>(
+                $"scans/for-ip/{Uri.EscapeDataString(ip)}");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            _uploadedScans = new List<UploadedScanView>();
+        }
+    }
+
+    private void CloseUploadedPopup()
+    {
+        _uploadedForIp = null;
+        _uploadedScans = null;
+    }
+
+    // Nmap "state" values: open, closed, filtered, open|filtered, ...
+    // Green = open (interesting), gray = closed, orange = anything else.
+    private static string StateColor(string state) => state switch
+    {
+        "open"              => "#28a745",
+        "closed"            => "#8a97a4",
+        "filtered"          => "#d97706",
+        null or ""          => "#8a97a4",
+        _                   => "#d97706",
+    };
+
     private async Task HVS(BoxDTO bb)
     {
         var response = await Http.PutAsJsonAsync(requestUri, bb);
         await _dialog.Close();
+    }
+
+    private async Task LoadAliasMap()
+    {
+        try
+        {
+            _aliasMap = await Http.GetFromJsonAsync<List<AliasEntry>>("download/alias-map");
+            StateHasChanged();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("alias map load failed: " + e);
+            _aliasMap = new List<AliasEntry>();
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadTopologyPng(bool pivots)
+    {
+        var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HHmm");
+        var name = pivots ? $"topology-{stamp}.png" : $"topology-plain-{stamp}.png";
+        var url = pivots ? "download/topology.svg" : "download/topology.svg?pivots=false";
+        try
+        {
+            await _JSRuntime.InvokeAsync<bool>("topologyPng.download", url, name, 2);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("PNG export failed: " + ex);
+        }
     }
     private async Task CloseDialog()
     {

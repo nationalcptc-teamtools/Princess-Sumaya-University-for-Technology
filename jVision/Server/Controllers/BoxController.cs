@@ -33,8 +33,6 @@ namespace jVision.Server.Controllers
         public async Task<ActionResult<IEnumerable<BoxDTO>>> GetBox()
         {
             return await _context.Boxes
-                //maybe convert service to dto?
-                //fix this whole thing
                 .Include(c => c.Services)
                 .Select(box => new BoxDTO
                 {
@@ -48,8 +46,12 @@ namespace jVision.Server.Controllers
                     Standing = box.Standing,
                     Os = box.Os,
                     Subnet = box.Subnet,
-                    Services = box.Services.Where(s => s!= null).Select(x => ServiceToDTO(x)).ToList()
-                    //(ICollection<ServiceDTO>)box.Services
+                    Domain = box.Domain,
+                    Category = box.Category,
+                    Stage = box.Stage,
+                    Services = box.Services.Where(s => s!= null).Select(x => ServiceToDTO(x)).ToList(),
+                    // Drives the "Uploaded" button visibility in Home.
+                    HasUploadedScans = _context.UploadedScanHost.Any(h => h.Ip == box.Ip),
                 }).ToListAsync();
         }
 
@@ -70,6 +72,16 @@ namespace jVision.Server.Controllers
                     }
                     exists.State = box.State;
                     exists.Subnet = box.Subnet;
+                    // Domain, like Stage, only gets overwritten when the incoming
+                    // DTO explicitly sets it — a scanner rescan shouldn't clear
+                    // a domain the operator entered by hand.
+                    if (!string.IsNullOrEmpty(box.Domain)) exists.Domain = box.Domain;
+                    // Category, like Domain/Stage, is operator-set — don't
+                    // wipe it on a scanner rescan.
+                    if (!string.IsNullOrEmpty(box.Category)) exists.Category = box.Category;
+                    // Only overwrite Stage if the incoming DTO explicitly set it,
+                    // so a scanner rescan doesn't clobber a stage set by a user.
+                    if (!string.IsNullOrEmpty(box.Stage)) exists.Stage = box.Stage;
                     exists.Services.Clear();
                     exists.Services = box.Services?.Select(x => DTOToService(x)).ToList();
                     _context.Boxes.Update(exists);
@@ -95,6 +107,9 @@ namespace jVision.Server.Controllers
                     Standing = b.Standing,
                     Os = b.Os,
                     Subnet = b.Subnet,
+                    Domain = b.Domain,
+                    Category = b.Category,
+                    Stage = b.Stage,
                     Services = b.Services?.Select(x => DTOToService(x)).ToList()
                 }));
                 await _context.SaveChangesAsync();
@@ -123,6 +138,9 @@ namespace jVision.Server.Controllers
             box.Standing = boxdto.Standing;
             box.Os = boxdto.Os;
             box.Subnet = boxdto.Subnet;
+            box.Domain = boxdto.Domain;
+            box.Category = boxdto.Category;
+            box.Stage = boxdto.Stage;
 
             try
             {
@@ -136,11 +154,62 @@ namespace jVision.Server.Controllers
             return NoContent();
         }
 
-        [HttpDelete]
-        public async Task<IActionResult> DeleteBox()
+        // Stage-only update. The progress board / Home dropdown uses this so
+        // it doesn't have to round-trip the whole BoxDTO (including services)
+        // just to flip one label.
+        public class StageUpdate { public string Stage { get; set; } }
+
+        [HttpPost("{id}/stage")]
+        public async Task<IActionResult> PostStage(int id, StageUpdate body)
+        {
+            var box = await _context.Boxes.Include(b => b.Services).FirstOrDefaultAsync(b => b.BoxId == id);
+            if (box == null) return NotFound();
+            box.Stage = string.IsNullOrWhiteSpace(body?.Stage) ? null : body.Stage.Trim();
+            await _context.SaveChangesAsync();
+            var dto = new BoxDTO
+            {
+                BoxId = box.BoxId,
+                UserId = box.UserId,
+                Ip = box.Ip,
+                Hostname = box.Hostname,
+                State = box.State,
+                Comments = box.Comments,
+                Standing = box.Standing,
+                Os = box.Os,
+                Subnet = box.Subnet,
+                Domain = box.Domain,
+                Category = box.Category,
+                Stage = box.Stage,
+                Services = box.Services?.Where(s => s != null).Select(x => ServiceToDTO(x)).ToList(),
+            };
+            await _hubContext.Clients.All.BoxUpdated(dto);
+            return NoContent();
+        }
+
+        // Single-host delete. The old [HttpDelete] with no id used to wipe the
+        // whole table, which was both surprising (no confirmation at the API
+        // level) and useless as a per-row action. The nuke-all behavior has
+        // moved to DELETE /box/all below, and this endpoint now does what the
+        // UI's per-row delete button expects.
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteBox(int id)
+        {
+            var box = await _context.Boxes.Include(b => b.Services).FirstOrDefaultAsync(b => b.BoxId == id);
+            if (box == null) return NotFound();
+            _context.Boxes.Remove(box);
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.BoxDeleted(id);
+            return NoContent();
+        }
+
+        // Nuke every host. Separate route so a stray DELETE /box can't do this
+        // by accident. The UI gates this behind a confirm dialog.
+        [HttpDelete("all")]
+        public async Task<IActionResult> DeleteAllBoxes()
         {
             _context.Boxes.RemoveRange(_context.Boxes);
             await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.BoxesCleared();
             return NoContent();
         }
         private bool BoxExists(int id)
@@ -182,6 +251,8 @@ namespace jVision.Server.Controllers
                 Standing = box.Standing,
                 Os = box.Os,
                 Subnet = box.Subnet,
+                Domain = box.Domain,
+                Category = box.Category,
                 Services = box.Services?.Select(x => ServiceToDTO(x)).ToList()
                 //(ICollection<ServiceDTO>)box.Services
             };

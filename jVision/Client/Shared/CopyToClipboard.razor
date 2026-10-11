@@ -28,9 +28,21 @@
     {
         var tempState = _state;
         var tempDisabled = _disabled;
-        _state = "oi oi-check";
+        // Show the tick only once the copy actually succeeded -- this used to
+        // flip to a tick before the interop call, so a throwing clipboard API
+        // still looked like it had worked.
+        try
+        {
+            // execCommand reports failure by returning false rather than
+            // throwing, so a bool result is the only honest signal here.
+            var ok = await JSRuntime.InvokeAsync<bool>("clipboardCopy.copyText", Text);
+            _state = ok ? "oi oi-check" : "oi oi-warning";
+        }
+        catch (JSException)
+        {
+            _state = "oi oi-warning";
+        }
         _disabled = true;
-        await JSRuntime.InvokeVoidAsync("clipboardCopy.copyText", Text);
         await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
         _state = tempState;
         _disabled = tempDisabled;

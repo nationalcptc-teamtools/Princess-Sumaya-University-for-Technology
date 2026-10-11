@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using jVision.Server.Download;
 using jVision.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using jVision.Server.Models;
+using jVision.Shared.Models;
 using Newtonsoft.Json;
 
 namespace jVision.Server.Controllers
@@ -36,6 +40,224 @@ namespace jVision.Server.Controllers
             }
             return StatusCode(500);
 
+        }
+
+        // SVG rendered directly on the server -- opens in any browser and is
+        // editable in Inkscape. Always plain (no pivot arrows) so it stays
+        // usable for the "environment" section of a report. The attack story
+        // lives in /download/attack-path.svg instead, which draws the pivots
+        // as a proper numbered kill-chain tree.
+        [HttpGet("topology.svg")]
+        public IActionResult DownloadTopologySvg()
+        {
+            var boxes = _context.Boxes.Include(i => i.Services).ToList();
+            var bytes = TopologyRenderer.RenderSvg(boxes, null);
+            return File(bytes, "image/svg+xml", "topology.svg");
+        }
+
+        // Attack-narrative map: numbered kill-chain tree with the attacker at
+        // the top and each PivotEdge as one step. Meant to be dropped straight
+        // into the "attack narrative" section of a report.
+        [HttpGet("attack-path.svg")]
+        public IActionResult DownloadAttackPathSvg()
+        {
+            var boxes = _context.Boxes.Include(i => i.Services).ToList();
+            var edges = _context.PivotEdge.OrderBy(e => e.CreatedAt).ToList();
+            var bytes = AttackPathRenderer.RenderSvg(boxes, edges);
+            return File(bytes, "image/svg+xml", "attack-path.svg");
+        }
+
+        // Standalone draw.io file (mxGraphModel already laid out) -- unlike the
+        // existing topology.csv which needs draw.io's csvimport step, this one
+        // opens directly in app.diagrams.net or the desktop drawio client.
+        [HttpGet("topology.drawio")]
+        public IActionResult DownloadTopologyDrawio()
+        {
+            var boxes = _context.Boxes.Include(i => i.Services).ToList();
+            var bytes = TopologyRenderer.RenderDrawio(boxes);
+            return File(bytes, "application/xml", "topology.drawio");
+        }
+
+        // GET /download/all -- one zip with every jVision artifact suitable for
+        // uploading to Drive at end of engagement:
+        //   boxes.json, credentials.json, scratchpad.json, custom-tabs.json,
+        //   team-ips.json, scan-uploads-index.json, logs.xlsx, topology.svg,
+        //   topology.drawio, scans/<original filenames>.xml
+        //
+        // Every operator name across every file is rewritten to memberN (alice
+        // → member1, bob → member2, ... alphabetical for stable output). This
+        // covers: LogEntry.Operator, ScratchPage.UpdatedBy, CustomTab.CreatedBy/
+        // UpdatedBy, TeamIp.Operator, ScanUpload.Uploader. Free-text fields
+        // (log lines, scratchpad content, tab content) are also scrubbed via
+        // word-boundary regex so name leaks inside content get anonymized too.
+        // GET /download/alias-map -- returns the same operator → memberN
+        // mapping that /download/all embeds, so the UI can render a
+        // reference chart ("member1 is mustafa, member2 is alice, ...")
+        // that everyone on the team sees.
+        [HttpGet("alias-map")]
+        public async Task<ActionResult<IEnumerable<object>>> AliasMap()
+        {
+            var alias = await BuildAliasMap();
+            return alias.OrderBy(kv => kv.Value)
+                        .Select(kv => (object)new { alias = kv.Value, name = kv.Key })
+                        .ToList();
+        }
+
+        // Same alias-building logic used by DownloadAll -- kept in one place
+        // so the UI chart and the zip export never drift apart.
+        private async Task<Dictionary<string, string>> BuildAliasMap()
+        {
+            var allOps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in await _context.LogEntry.Select(l => l.Operator).Distinct().ToListAsync())
+                if (!string.IsNullOrEmpty(s)) allOps.Add(s);
+            foreach (var s in await _context.ScratchPage.Select(p => p.UpdatedBy).Distinct().ToListAsync())
+                if (!string.IsNullOrEmpty(s)) allOps.Add(s);
+            foreach (var s in await _context.CustomTab.Select(t => t.CreatedBy).Distinct().ToListAsync())
+                if (!string.IsNullOrEmpty(s)) allOps.Add(s);
+            foreach (var s in await _context.CustomTab.Select(t => t.UpdatedBy).Distinct().ToListAsync())
+                if (!string.IsNullOrEmpty(s)) allOps.Add(s);
+            foreach (var s in await _context.TeamIp.Select(t => t.Operator).Distinct().ToListAsync())
+                if (!string.IsNullOrEmpty(s)) allOps.Add(s);
+            foreach (var s in await _context.ScanUpload.Select(u => u.Uploader).Distinct().ToListAsync())
+                if (!string.IsNullOrEmpty(s)) allOps.Add(s);
+
+            var alias = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            int i = 1;
+            foreach (var op in allOps.OrderBy(o => o, StringComparer.OrdinalIgnoreCase))
+                alias[op] = $"member{i++}";
+            return alias;
+        }
+
+        // GET /download/all -- deliberately minimal export. Previously this
+        // zip contained everything in the DB (full credentials with passwords
+        // in-line, scratchpad, custom tabs, logs, scan XMLs, uploader info,
+        // the alias map). That shape is dangerous: a leaked export leaks
+        // real secrets. The new policy is "only what a report needs, no
+        // secrets":
+        //   credentials.json       usernames only (pair -> part before ':';
+        //                          hash-typed entries dropped entirely)
+        //   hosts.json             ip + hostname only
+        //   team-ips.json          per-operator connection records (operator
+        //                          names rewritten to memberN)
+        //   created-accounts.json  accounts we created, WITHOUT the password
+        //                          field (CreatedBy also rewritten)
+        //   attack-path.svg        numbered kill-chain tree
+        //   topology.svg           plain network topology (no pivot arrows)
+        //   topology.drawio        editable topology (app.diagrams.net)
+        //
+        // There is no PNG topology in the zip: the server has no image
+        // library and the UI's PNG button already rasterises the SVG client-
+        // side via JS. The SVG we include is byte-for-byte what the PNG
+        // button converts, so an operator who wants PNG hits the button or
+        // runs any svg->png tool against topology.svg.
+        //
+        // Operator anonymisation stays (team-ips, created-accounts.CreatedBy):
+        // the alias MAP file is NOT included, so the receiver sees memberN
+        // without a way to resolve it back. The /download/alias-map endpoint
+        // still exists for internal UI use.
+        [HttpGet("all")]
+        public async Task<IActionResult> DownloadAll()
+        {
+            var boxes = await _context.Boxes.ToListAsync();
+            var creds = await _context.Cred.ToListAsync();
+            var teamIps = await _context.TeamIp.ToListAsync();
+            var createdAccounts = await _context.CreatedAccount.ToListAsync();
+
+            // Alias map built from the only two sources that remain in the
+            // export (team-ips, created-accounts). Alphabetical for stable
+            // output. Kept SERVER-SIDE only -- not written into the zip.
+            var allOps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in teamIps) if (!string.IsNullOrEmpty(t.Operator)) allOps.Add(t.Operator);
+            foreach (var a in createdAccounts) if (!string.IsNullOrEmpty(a.CreatedBy)) allOps.Add(a.CreatedBy);
+            var alias = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            int i = 1;
+            foreach (var op in allOps.OrderBy(o => o, StringComparer.OrdinalIgnoreCase))
+                alias[op] = $"member{i++}";
+            string A(string name) => name != null && alias.TryGetValue(name, out var m) ? m : name;
+
+            // Username extraction: a Cred.Text of "alice:hunter2" -> "alice".
+            // An entry whose Type contains "hash" is dropped entirely to honour
+            // the "no mentions of passwords or hashes" rule -- a bare hash
+            // has no colon and would otherwise be exported as if it were a
+            // username.
+            static string UsernameOnly(string text)
+            {
+                if (string.IsNullOrEmpty(text)) return text;
+                int idx = text.IndexOf(':');
+                return idx >= 0 ? text.Substring(0, idx) : text;
+            }
+            bool IsHashType(string type) =>
+                !string.IsNullOrEmpty(type) &&
+                type.IndexOf("hash", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            var ms = new MemoryStream();
+            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                WriteJsonEntry(zip, "hosts.json", boxes
+                    .OrderBy(b => b.Ip, StringComparer.OrdinalIgnoreCase)
+                    .Select(b => new { b.Ip, b.Hostname }));
+
+                WriteJsonEntry(zip, "credentials.json", creds
+                    .Where(c => !IsHashType(c.Type))
+                    .Select(c => new {
+                        Username = UsernameOnly(c.Text),
+                        c.Type, c.Source, c.Verified, c.Origin
+                    }));
+
+                WriteJsonEntry(zip, "team-ips.json", teamIps.Select(t => new {
+                    Operator = A(t.Operator), t.Ip, t.FirstSeen, t.LastSeen
+                }));
+
+                WriteJsonEntry(zip, "created-accounts.json", createdAccounts.Select(a => new {
+                    a.Ip, a.Service, a.Username, a.Privilege, a.Notes,
+                    CreatedBy = A(a.CreatedBy), a.CreatedAt
+                    // Password INTENTIONALLY omitted.
+                }));
+
+                // Topology exports -- same renderers the standalone endpoints use.
+                // Plain SVG (no arrows) so this doubles as "clean report figure".
+                var allBoxesWithServices = await _context.Boxes.Include(b => b.Services).ToListAsync();
+                var edges = _context.PivotEdge.OrderBy(e => e.CreatedAt).ToList();
+                var topoSvg = TopologyRenderer.RenderSvg(allBoxesWithServices, null);
+                WriteBytesEntry(zip, "topology.svg", topoSvg);
+                var drawio = TopologyRenderer.RenderDrawio(allBoxesWithServices);
+                WriteBytesEntry(zip, "topology.drawio", drawio);
+                var pathSvg = AttackPathRenderer.RenderSvg(allBoxesWithServices, edges);
+                WriteBytesEntry(zip, "attack-path.svg", pathSvg);
+
+                var readme = "jVision export — " +
+                             DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm 'UTC'") + "\n\n" +
+                             "hosts.json             — ip + hostname of every known box\n" +
+                             "credentials.json       — usernames only (no passwords, no hashes)\n" +
+                             "team-ips.json          — operator connection records (operator anonymised as memberN)\n" +
+                             "created-accounts.json  — accounts we created (NO password field)\n" +
+                             "attack-path.svg        — numbered kill-chain tree\n" +
+                             "topology.svg           — network topology (plain)\n" +
+                             "topology.drawio        — editable topology (app.diagrams.net)\n\n" +
+                             "This export omits raw logs, scratchpad, custom tabs, scan XMLs, and the\n" +
+                             "operator alias map on purpose. Open topology.svg in a browser and\n" +
+                             "\"Save As PNG\" if a raster is needed.\n";
+                WriteBytesEntry(zip, "README.txt", Encoding.UTF8.GetBytes(readme));
+            }
+
+            ms.Position = 0;
+            var name = $"jvision-{DateTime.UtcNow:yyyy-MM-dd-HHmm}.zip";
+            return File(ms.ToArray(), "application/zip", name);
+        }
+
+        private static void WriteJsonEntry(ZipArchive zip, string name, object payload)
+        {
+            var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+            using var es = entry.Open();
+            using var sw = new StreamWriter(es, new UTF8Encoding(false));
+            sw.Write(JsonConvert.SerializeObject(payload, Formatting.Indented));
+        }
+
+        private static void WriteBytesEntry(ZipArchive zip, string name, byte[] bytes)
+        {
+            var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+            using var es = entry.Open();
+            es.Write(bytes, 0, bytes.Length);
         }
 
         private FileResult CreateTopology(List<Box> bl)

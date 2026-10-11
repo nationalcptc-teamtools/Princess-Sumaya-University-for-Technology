@@ -32,10 +32,108 @@
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
     <script src="_content/BlazorTable/BlazorTable.min.js"></script>
+    <script src="javascript/jvision-search.js"></script>
     <script>
         window.clipboardCopy = {
+            // Returns true only if the text really reached the clipboard, so the
+            // UI can show a warning instead of a tick when it didn't.
             copyText: function (text) {
-                navigator.clipboard.writeText(text);
+                // navigator.clipboard only exists in a secure context. jVision is
+                // reached over plain http on a LAN address, so everyone except
+                // the person on localhost falls through to execCommand.
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text);
+                    return true;
+                }
+
+                var ta = document.createElement("textarea");
+                ta.value = text;
+                ta.setAttribute("readonly", "");
+                ta.style.position = "fixed";
+                ta.style.top = "0";
+                ta.style.left = "0";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+
+                var sel = document.getSelection();
+                var prev = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+
+                ta.focus();
+                ta.select();
+                // Safari ignores select() on a readonly textarea without this.
+                if (ta.setSelectionRange) ta.setSelectionRange(0, ta.value.length);
+
+                var ok = false;
+                try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+
+                document.body.removeChild(ta);
+                if (prev && sel) { sel.removeAllRanges(); sel.addRange(prev); }
+                return ok;
+            },
+
+            // Diagnostic for the copy button: tells us which path is in play and
+            // whether the page is even allowed to touch the clipboard.
+            probe: function () {
+                return JSON.stringify({
+                    secure: window.isSecureContext,
+                    hasApi: !!navigator.clipboard,
+                    canExec: typeof document.execCommand === "function",
+                    focused: document.hasFocus(),
+                    origin: window.location.origin
+                });
+            }
+        };
+
+        // Fetch the server-rendered topology SVG, rasterize it to PNG via an
+        // offscreen canvas, and trigger a download. Client-side keeps the
+        // server free of libgdiplus / SkiaSharp deps.
+        window.topologyPng = {
+            download: async function (svgUrl, fileName, scale) {
+                scale = scale || 2;  // 2x for a crisper PNG on high-DPI screens
+                const resp = await fetch(svgUrl, { credentials: "same-origin" });
+                if (!resp.ok) throw new Error("svg fetch failed: " + resp.status);
+                const svgText = await resp.text();
+
+                // Parse the SVG to read its intrinsic width/height. Fall back
+                // to 1280x720 if the file didn't declare them.
+                const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+                const root = doc.documentElement;
+                const w = parseInt(root.getAttribute("width")) || 1280;
+                const h = parseInt(root.getAttribute("height")) || 720;
+
+                const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+                const svgUrlObj = URL.createObjectURL(svgBlob);
+                try {
+                    await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement("canvas");
+                            canvas.width = w * scale;
+                            canvas.height = h * scale;
+                            const ctx = canvas.getContext("2d");
+                            // White background -- otherwise transparent PNGs
+                            // look grey when pasted into slides.
+                            ctx.fillStyle = "#ffffff";
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob(function (blob) {
+                                const a = document.createElement("a");
+                                a.href = URL.createObjectURL(blob);
+                                a.download = fileName || "topology.png";
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+                                resolve();
+                            }, "image/png");
+                        };
+                        img.onerror = e => reject(e);
+                        img.src = svgUrlObj;
+                    });
+                } finally {
+                    URL.revokeObjectURL(svgUrlObj);
+                }
+                return true;
             }
         };
     </script>

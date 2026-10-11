@@ -42,6 +42,26 @@
                     </p>
                     <p>
                         <label>
+                            Domain
+                            <InputText @bind-Value="_box.Domain" class="form-control" placeholder="e.g. corp.local" />
+                        </label>
+                    </p>
+                    <p>
+                        <label>
+                            Category
+                            <InputSelect @bind-Value="_box.Category" class="form-control">
+                                <option value="">Uncategorized</option>
+                                <option value="AD">Active Directory</option>
+                                <option value="Web">Web</option>
+                                <option value="OT">OT</option>
+                                <option value="AI">AI</option>
+                                <option value="Mobile">Mobile</option>
+                                <option value="Cloud">Cloud</option>
+                            </InputSelect>
+                        </label>
+                    </p>
+                    <p>
+                        <label>
                             OS
                             <InputSelect @bind-Value="_box.Os" class="form-control">
                                 <option value="">Select OS</option>

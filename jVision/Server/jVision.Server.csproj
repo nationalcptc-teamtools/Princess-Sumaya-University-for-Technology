@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Blazorise.RichTextEdit" Version="0.9.5" />
+    <PackageReference Include="ClosedXML" Version="0.95.4" />
     <PackageReference Include="BlazorTable" Version="1.17.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="5.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="5.0.10" />
@@ -28,5 +29,11 @@
     <ProjectReference Include="..\Shared\jVision.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Static image assets embedded (base64) into the SVG renderers. -->
+    <Content Include="Assets\tux.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 </Project>

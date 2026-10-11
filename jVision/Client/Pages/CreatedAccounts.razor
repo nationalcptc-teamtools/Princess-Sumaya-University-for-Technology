@@ -1,0 +1,181 @@
+@page "/created-accounts"
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+<div class="d-flex align-items-center" style="gap:12px; margin-bottom:8px;">
+    <h3 style="margin:0; flex:1;">Created Accounts</h3>
+    <button class="btn btn-primary" @onclick="Load">Refresh</button>
+</div>
+<p class="text-muted" style="margin-bottom:16px;">
+    Accounts we made mid-engagement (new SSH users, rogue AD users, CMS admins we added, &hellip;).
+    Every row is automatically mirrored into the <a href="credentials">Credentials</a> tab with
+    origin <span class="badge bg-secondary">Created</span>.
+</p>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+        <h5 class="card-title" style="margin-bottom:12px;">Add a new account</h5>
+        <div class="row g-2" style="row-gap:6px;">
+            <div class="col-md-2">
+                <input class="form-control form-control-sm" placeholder="target IP"
+                       @bind="_draft.Ip" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control form-control-sm" placeholder="service (SSH, AD, WP, …)"
+                       @bind="_draft.Service" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control form-control-sm" placeholder="username"
+                       @bind="_draft.Username" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control form-control-sm" placeholder="password"
+                       @bind="_draft.Password" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control form-control-sm" placeholder="privilege (admin, dom-admin, …)"
+                       @bind="_draft.Privilege" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-sm btn-success w-100"
+                        @onclick="Add"
+                        disabled="@string.IsNullOrWhiteSpace(_draft.Username)">Add</button>
+            </div>
+            <div class="col-12">
+                <input class="form-control form-control-sm" placeholder="notes (how / why created)"
+                       @bind="_draft.Notes" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_rows == null)
+{
+    <p><em>Loading&hellip;</em></p>
+}
+else if (_rows.Count == 0)
+{
+    <p><em>No accounts created yet. Fill in the form above when you plant one.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>IP</th>
+                <th>Service</th>
+                <th>Username</th>
+                <th>Password</th>
+                <th>Privilege</th>
+                <th>Notes</th>
+                <th>Created</th>
+                <th style="width:40px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in _rows)
+            {
+                <tr>
+                    <td style="font-family:monospace;">@a.Ip</td>
+                    <td>@a.Service</td>
+                    <td style="font-weight:600;">@a.Username</td>
+                    <td style="font-family:monospace;">@a.Password</td>
+                    <td>@a.Privilege</td>
+                    <td>@a.Notes</td>
+                    <td>
+                        <small class="text-muted">
+                            by @a.CreatedBy<br />
+                            @a.CreatedAt.ToLocalTime().ToString("MMM d HH:mm")
+                        </small>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-link text-danger" title="delete (also removes mirrored cred)"
+                                @onclick="() => Delete(a)">
+                            <span class="oi oi-x"></span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<CreatedAccount> _rows;
+    private CreatedAccount _draft = new();
+    private string _error;
+    private HubConnection _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        _hub = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/boxhub"))
+            .WithAutomaticReconnect()
+            .Build();
+        _hub.On("CreatedAccountsChanged", async () => { await Load(); await InvokeAsync(StateHasChanged); });
+        try { await _hub.StartAsync(); } catch { }
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _rows = await Http.GetFromJsonAsync<List<CreatedAccount>>("createdaccounts");
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task Add()
+    {
+        if (string.IsNullOrWhiteSpace(_draft.Username)) return;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("createdaccounts", _draft);
+            if (resp.IsSuccessStatusCode)
+            {
+                _draft = new CreatedAccount();
+                await Load();
+            }
+            else
+            {
+                _error = $"add failed: {(int)resp.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task Delete(CreatedAccount a)
+    {
+        try
+        {
+            await Http.DeleteAsync($"createdaccounts/{a.CreatedAccountId}");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub != null) await _hub.DisposeAsync();
+    }
+}

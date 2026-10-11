@@ -1,7 +1,12 @@
-version: '3.4'
-
 services:
   blazorhosted:
-    image: silvercryptor/jvision
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jvision-local
     ports:
         - 7777:7777
+    # Persist the SQLite DB on the host so edits survive rebuilds and the
+    # data can be committed/backed up alongside the repo.
+    volumes:
+        - ./data/jvis.db:/app/jvis.db

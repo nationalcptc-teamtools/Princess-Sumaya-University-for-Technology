@@ -1,0 +1,235 @@
+@page "/scratch"
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.JSInterop
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<h3 style="margin-bottom:4px;">Scratchpad</h3>
+<p class="text-muted" style="margin-bottom:16px;">
+    Shared notes and payloads. Anyone on the team can edit any page &mdash;
+    hit Save when you're done so the others pick it up.
+</p>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="input-group" style="margin-bottom:10px;">
+            <input class="form-control" placeholder="new page name..."
+                   @bind="_newTitle" @bind:event="oninput"
+                   @onkeydown="@(e => { if (e.Key == "Enter") _ = Create(); })" />
+            <div class="input-group-append">
+                <button class="btn btn-success" @onclick="Create"
+                        disabled="@string.IsNullOrWhiteSpace(_newTitle)">+</button>
+            </div>
+        </div>
+
+        @if (_pages == null)
+        {
+            <p><em>Loading&hellip;</em></p>
+        }
+        else if (_pages.Count == 0)
+        {
+            <p class="text-muted"><em>No pages yet.</em></p>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var p in _pages)
+                {
+                    <button class="list-group-item list-group-item-action
+                                   @(p.ScratchPageId == _selectedId ? "active" : "")"
+                            style="text-align:left;"
+                            @onclick="() => Select(p)">
+                        @p.Title
+                    </button>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="col-md-9">
+        @if (_selectedId == 0)
+        {
+            <p class="text-muted"><em>Pick a page on the left, or make a new one.</em></p>
+        }
+        else
+        {
+            <div class="d-flex align-items-center" style="gap:8px; margin-bottom:8px;">
+                <input class="form-control" style="max-width:320px; font-weight:600;"
+                       value="@_title"
+                       @oninput="@(e => { _title = e.Value?.ToString(); _dirty = true; })" />
+                <button class="btn btn-primary" @onclick="Save" disabled="@(!_dirty)">
+                    @(_dirty ? "Save" : "Saved")
+                </button>
+                <button class="btn btn-secondary" @onclick="Copy">
+                    <span class="oi oi-clipboard"></span> @_copyLabel
+                </button>
+                <div style="flex:1;"></div>
+                <button class="btn btn-outline-danger btn-sm" @onclick="Delete">Delete page</button>
+            </div>
+
+            <textarea class="form-control"
+                      style="height:60vh; font-family:monospace; font-size:13px;
+                             white-space:pre; overflow-wrap:normal; overflow-x:auto;"
+                      spellcheck="false"
+                      value="@_content"
+                      @oninput="@(e => { _content = e.Value?.ToString(); _dirty = true; })"></textarea>
+
+            <small class="text-muted">
+                @if (_updatedBy != null)
+                {
+                    <span>last edited by @_updatedBy, @_updatedAt.ToLocalTime().ToString("MMM d HH:mm")</span>
+                }
+                @if (_dirty)
+                {
+                    <span class="text-warning" style="margin-left:8px;">unsaved changes</span>
+                }
+            </small>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] public HttpClient Http { get; set; }
+
+    private List<ScratchPage> _pages;
+    private int _selectedId;
+    private string _title = "";
+    private string _content = "";
+    private string _updatedBy;
+    private DateTime _updatedAt;
+    private bool _dirty;
+    private string _newTitle = "";
+    private string _copyLabel = "Copy";
+    private string _error;
+    private HubConnection _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+
+        _hub = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        _hub.On("ScratchChanged", async () =>
+        {
+            await Load();
+            await InvokeAsync(StateHasChanged);
+        });
+        await _hub.StartAsync();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _pages = await Http.GetFromJsonAsync<List<ScratchPage>>("scratch");
+            _error = null;
+
+            // A teammate's save shouldn't wipe out text you're in the middle of
+            // typing; only re-sync the editor when you have nothing unsaved.
+            if (_selectedId != 0 && !_dirty)
+            {
+                var mine = _pages.FirstOrDefault(p => p.ScratchPageId == _selectedId);
+                if (mine == null) Clear();
+                else Fill(mine);
+            }
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    private async Task Create()
+    {
+        var title = (_newTitle ?? "").Trim();
+        if (title.Length == 0) return;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("scratch", new ScratchPage { Title = title, Content = "" });
+            var created = await resp.Content.ReadFromJsonAsync<ScratchPage>();
+            _newTitle = "";
+            await Load();
+            if (created != null) Fill(created);
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    private async Task Select(ScratchPage p)
+    {
+        if (_dirty && p.ScratchPageId != _selectedId)
+        {
+            var ok = await JS.InvokeAsync<bool>("confirm",
+                $"'{_title}' has unsaved changes. Discard them?");
+            if (!ok) return;
+        }
+        Fill(p);
+    }
+
+    private void Fill(ScratchPage p)
+    {
+        _selectedId = p.ScratchPageId;
+        _title = p.Title;
+        _content = p.Content ?? "";
+        _updatedBy = p.UpdatedBy;
+        _updatedAt = p.UpdatedAt;
+        _dirty = false;
+        _copyLabel = "Copy";
+    }
+
+    private void Clear()
+    {
+        _selectedId = 0;
+        _title = "";
+        _content = "";
+        _updatedBy = null;
+        _dirty = false;
+    }
+
+    private async Task Save()
+    {
+        if (_selectedId == 0 || string.IsNullOrWhiteSpace(_title)) return;
+        try
+        {
+            await Http.PutAsJsonAsync($"scratch/{_selectedId}",
+                new ScratchPage { ScratchPageId = _selectedId, Title = _title, Content = _content });
+            _dirty = false;
+            await Load();
+            var mine = _pages.FirstOrDefault(p => p.ScratchPageId == _selectedId);
+            if (mine != null) Fill(mine);
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    private async Task Delete()
+    {
+        if (_selectedId == 0) return;
+        var ok = await JS.InvokeAsync<bool>("confirm", $"Delete '{_title}' for everyone?");
+        if (!ok) return;
+        try
+        {
+            await Http.DeleteAsync($"scratch/{_selectedId}");
+            Clear();
+            await Load();
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    private async Task Copy()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("clipboardCopy.copyText", _content ?? "");
+            _copyLabel = "Copied";
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub != null) await _hub.DisposeAsync();
+    }
+}

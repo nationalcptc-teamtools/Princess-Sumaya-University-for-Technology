@@ -1,200 +1,494 @@
-﻿@page "/credentials"
+@page "/credentials"
 @using jVision.Shared.Models
 @using jVision.Shared
 @using jVision.Client.Shared
 @using System.Collections.Generic
+@using System.Net.Http.Json
 @using Microsoft.AspNetCore.SignalR.Client
 @inject IJSRuntime _JSRuntime
-
 @inject NavigationManager NavigationManager
+
 <div class="row">
     <div class="col">
         <h2>Creds</h2>
 
-        <label for="type">Credential Type</label>
-
-        <div class="col-sm-2" style="padding-left:0px;margin-bottom:20px;">
-            <select name="type" class="form-control custom-select" @bind="drop">
-                @foreach (var item in Enum.GetValues(typeof(cType)))
-                {
-                    <option value="@item">@item</option>
-                }
-            </select>
-        </div>
-        <div class="col-sm-2" style="padding-left: 0px; margin-bottom: 40px;">
-            <div class="d-flex">
-                <div style="margin-right:8px">
-                    <input placeholder="Enter Credential" @bind="_credText" class="form-control" />
-                </div>
-
-                <div>
-                    <button class="btn btn-success"
-                            @onclick="AddCred">
-                        Submit
-                    </button>
-                </div>
-
+        <div class="d-flex align-items-end" style="gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+            <div>
+                <label for="type">Type</label>
+                <select name="type" class="form-control custom-select" @bind="drop">
+                    @foreach (var item in Enum.GetValues(typeof(cType)))
+                    {
+                        <option value="@item">@item</option>
+                    }
+                </select>
             </div>
 
+            <div>
+                <label>From <span class="text-danger">*</span></label>
+                <select class="form-control custom-select" @bind="_origin">
+                    <option value="">-- select --</option>
+                    <option value="Web">Web</option>
+                    <option value="AD">AD</option>
+                    <option value="Others">Others</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Mode</label>
+                <select class="form-control custom-select"
+                        value="@(_bulkMode ? "true" : "false")"
+                        @onchange="OnModeChanged">
+                    <option value="false">Single</option>
+                    <option value="true">Bulk paste</option>
+                </select>
+            </div>
+
+            @if (!_bulkMode)
+            {
+                <div>
+                    <label>Credential</label>
+                    <input placeholder="e.g. Administrator:Passw0rd!"
+                           @bind="_credText" @bind:event="oninput" class="form-control" />
+                </div>
+            }
+
+            <div style="flex:1; min-width:200px;">
+                <label>Source</label>
+                <input placeholder="obtained via SMB relay on 10.0.5.44"
+                       @bind="_source" @bind:event="oninput" class="form-control" />
+            </div>
+
+            <div>
+                <button class="btn btn-success" @onclick="AddOrBulk"
+                        disabled="@string.IsNullOrEmpty(_origin)"
+                        title="@(string.IsNullOrEmpty(_origin) ? "pick Web, AD or Others first" : "")">
+                    Submit
+                </button>
+            </div>
         </div>
 
+        @if (_bulkMode)
+        {
+            <div class="form-group">
+                <label>Paste creds (one per line — Source above applies to all)</label>
+                <textarea class="form-control" rows="6" placeholder="line1&#10;line2&#10;..."
+                          value="@_bulkText" @oninput="OnBulkInput"></textarea>
+                <small class="text-muted">
+                    @(_bulkText?.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l)).Count() ?? 0) non-empty line(s) ready to submit
+                </small>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(_status))
+        {
+            <div class="alert alert-success" style="margin-top:8px;">@_status</div>
+        }
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-warning" style="margin-top:8px;">@_error</div>
+        }
+    </div>
+</div>
+
+<div class="row" style="margin-bottom:12px;">
+    <div class="col d-flex align-items-center" style="gap:8px;">
+        <span class="text-muted"><small>Show:</small></span>
+        <div class="btn-group btn-group-sm">
+            @foreach (var f in _filters)
+            {
+                <button class="btn @(_filter == f.Value ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="() => _filter = f.Value">
+                    @f.Label (@CountFor(f.Value))
+                </button>
+            }
+        </div>
     </div>
 </div>
 
 <div class="row">
-    <div class="col">
-        <div class="d-flex flex-row">
-            <div class="p-1">
-                <h4>Usernames</h4>
-            </div>
-            <div class="p-2">
-                <CopyToClipboard Large=false Text=@string.Join("\n", _usernames) />
-            </div>
-        </div>
-        <div class="shadow boxie" style="padding:20px;">
-            @foreach (var c in creds.Where(i => i != null && i.Type.Equals("Username")))
-            {
-                <div class="d-flex">
-                    <div class="p-2 mr-auto">
-                        @c.Text
-                    </div>
-                    <div class="p-1">
-                        <button class="btn btn-sm btn-outline-danger" title="Delete Cred" @onclick="@(()=>DeleteCred(c))">
-                            <span class="oi oi-trash"></span>
-                        </button>
-                    </div>
+    @foreach (var col in _columns)
+    {
+        <div class="col">
+            <div class="d-flex flex-row">
+                <div class="p-1"><h4>@col.Label</h4></div>
+                <div class="p-2">
+                    <CopyToClipboard Large=false Text=@string.Join("\n", CredsOfType(col.Type).Select(c => c.Text)) />
                 </div>
-            }
-        </div>
-
-    </div>
-
-    <div class="col">
-        <div class="d-flex flex-row">
-            <div class="p1">
-                <h4>Passwords</h4>
             </div>
-            <div class="p-2">
-                <CopyToClipboard Large=false Text=@string.Join("\n", _passwords) />
+            <div class="shadow boxie" style="padding:20px;">
+                @foreach (var c in CredsOfType(col.Type))
+                {
+                    var used = _usagesByCred.TryGetValue(c.CredId, out var uList) ? uList : new List<CredUsage>();
+                    <div class="d-flex align-items-start" style="gap:6px; padding:4px 0; border-bottom:1px solid #eee;">
+                        <div class="p-1">
+                            <input type="checkbox" checked="@c.Verified"
+                                   @onchange="@(e => ToggleVerified(c, (bool)e.Value))"
+                                   title="mark verified (working)" />
+                        </div>
+                        <div class="p-1 mr-auto" style="min-width:0; word-break:break-all;">
+                            <div style="@(c.Verified ? "font-weight:600;" : "")">
+                                <span class="badge @OriginBadge(c.Origin)"
+                                      style="margin-right:6px;">@(c.Origin ?? "?")</span>@c.Text
+                                @if (used.Count > 0)
+                                {
+                                    var validN = used.Count(u => u.Status == "valid");
+                                    var invalidN = used.Count(u => u.Status == "invalid");
+                                    <span title="tried on @used.Count host(s)" style="margin-left:6px; font-size:11px; color:#5a6674;">
+                                        @if (validN > 0) { <span style="color:#1a7f37;">✓@validN</span> }
+                                        @if (invalidN > 0) { <span style="color:#c4271a; margin-left:4px;">✗@invalidN</span> }
+                                    </span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(c.Source))
+                            {
+                                <div class="text-muted"><small>@c.Source</small></div>
+                            }
+                        </div>
+                        <div class="p-1">
+                            <button class="btn btn-sm btn-outline-secondary" title="copy"
+                                    @onclick="@(() => CopyOne(c.Text))">
+                                <span class="oi oi-clipboard"></span>
+                            </button>
+                        </div>
+                        <div class="p-1">
+                            <button class="btn btn-sm @(( _expandedCred == c.CredId ) ? "btn-primary" : "btn-outline-primary")"
+                                    title="track where this cred works"
+                                    @onclick="@(() => ToggleUsages(c))">
+                                <span class="oi oi-target"></span>
+                            </button>
+                        </div>
+                        <div class="p-1">
+                            <button class="btn btn-sm btn-outline-danger" title="delete"
+                                    @onclick="@(() => DeleteCred(c))">
+                                <span class="oi oi-trash"></span>
+                            </button>
+                        </div>
+                    </div>
+                    @if (_expandedCred == c.CredId)
+                    {
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:8px; margin:4px 0 8px 0;">
+                            <div style="font-weight:600; font-size:12px; margin-bottom:6px;">Where this credential works</div>
+                            @if (used.Count == 0)
+                            {
+                                <div class="text-muted" style="font-size:12px;"><em>No usage logged yet.</em></div>
+                            }
+                            else
+                            {
+                                <table class="table table-sm" style="margin-bottom:8px;">
+                                    <thead>
+                                        <tr>
+                                            <th>Host</th>
+                                            <th>Service</th>
+                                            <th>Port</th>
+                                            <th>Status</th>
+                                            <th>Notes</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var u in used)
+                                        {
+                                            <tr>
+                                                <td style="font-family:monospace;">@u.Ip</td>
+                                                <td>@u.ServiceName</td>
+                                                <td>@u.Port</td>
+                                                <td><span class="badge @StatusBadge(u.Status)">@u.Status</span></td>
+                                                <td style="font-size:12px;">@u.Notes</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-link text-danger"
+                                                            @onclick="@(() => DeleteUsage(c, u))">
+                                                        <span class="oi oi-x"></span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                            <div class="d-flex" style="gap:4px; flex-wrap:wrap; align-items:center;">
+                                <select class="form-select form-select-sm" style="width:auto;" @bind="_newUsage.Ip">
+                                    <option value="">host…</option>
+                                    @foreach (var b in _boxes) { <option value="@b.Ip">@b.Ip @b.Hostname</option> }
+                                </select>
+                                <input class="form-control form-control-sm" style="width:120px;" placeholder="service" @bind="_newUsage.ServiceName" />
+                                <input class="form-control form-control-sm" style="width:70px;" type="number" placeholder="port" @bind="_newUsage.Port" />
+                                <select class="form-select form-select-sm" style="width:auto;" @bind="_newUsage.Status">
+                                    <option value="valid">valid</option>
+                                    <option value="invalid">invalid</option>
+                                    <option value="untested">untested</option>
+                                </select>
+                                <input class="form-control form-control-sm" style="flex:1; min-width:120px;" placeholder="notes" @bind="_newUsage.Notes" />
+                                <button class="btn btn-sm btn-success" @onclick="@(() => AddUsage(c))"
+                                        disabled="@string.IsNullOrWhiteSpace(_newUsage.Ip)">Log</button>
+                            </div>
+                        </div>
+                    }
+                }
             </div>
         </div>
-        <div class="shadow boxie" style="padding:20px;">
-            @foreach (var c in creds.Where(i => i != null && i.Type.Equals("Password")))
-            {
-                <div class="d-flex">
-                    <div class="p-2 mr-auto">
-                        @c.Text
-                    </div>
-                    <div class="p-1">
-                        <button class="btn btn-sm btn-outline-danger" title="Delete Cred" @onclick="@(()=>DeleteCred(c))">
-                            <span class="oi oi-trash"></span>
-                        </button>
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
-    <div class="col">
-        <div class="d-flex flex-row">
-            <div class="p-1">
-                <h4>Pairs</h4>
-            </div>
-            <div class="p-2">
-                <CopyToClipboard Large=false Text=@string.Join("\n", _pairs) />
-            </div>
-        </div>
-        <div class="shadow boxie" style="padding:20px;">
-            @foreach (var c in creds.Where(i => i != null && i.Type.Equals("Pair")))
-            {
-                <div class="d-flex">
-                    <div class="p-2 mr-auto">
-                        @c.Text
-                    </div>
-                    <div class="p-1">
-                        <button class="btn btn-sm btn-outline-danger" title="Delete Cred" @onclick="@(()=>DeleteCred(c))">
-                            <span class="oi oi-trash"></span>
-                        </button>
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
+    }
 </div>
 
+@code {
+    [Inject] public HttpClient Http { get; set; }
 
+    private List<Cred> creds = new();
+    private string requestUri = "Creds";
+    private HubConnection hubConnection;
+    private string _error;
+    private string _status;
 
-    @code {
-        [Inject] public HttpClient Http { get; set; }
-        private List<Cred> creds = new List<Cred>();
-        private List<string> _usernames => creds.Where(i => i != null && i.Type.Equals("Username")).Select(w => w.Text).ToList();
-        private List<string> _passwords => creds.Where(i => i != null && i.Type.Equals("Password")).Select(y => y.Text).ToList();
-        private List<string> _pairs => creds.Where(i => i != null && i.Type.Equals("Pair")).Select(z => z.Text).ToList();
-        private string requestUri = "Creds";
-        private HubConnection hubConnection;
-        private string error;
-        private string _credText;
+    private string _credText;
+    private string _source;
+    private string _bulkText;
+    private bool _bulkMode;
 
-        private enum cType
-        {
-            Username,
-            Password,
-            Pair
-        }
-        private cType drop = cType.Username;
-        protected override async Task OnInitializedAsync()
-        {
-            hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
-            hubConnection.On<Cred>("CredAdded", t =>
-            {
-                creds.Add(t);
-                StateHasChanged();
-            });
-            hubConnection.On<int>("CredDeleted", t =>
-            {
-                Cred yo = creds.Where(i => i.CredId == t).FirstOrDefault();
-                creds.Remove(yo);
-                StateHasChanged();
-            });
-            await hubConnection.StartAsync();
-            try
-            {
-                creds = await Http.GetFromJsonAsync<List<Cred>>(requestUri);
-            }
-            catch (Exception)
-            {
-                error = "Error Encountered";
-            }
-        }
-
-        private async Task DeleteCred(Cred c)
-        {
-            string requestUriDel = $"Creds/{c.CredId}";
-            var response = await Http.DeleteAsync(requestUriDel);
-            if (!response.IsSuccessStatusCode)
-            {
-                error = response.ReasonPhrase;
-            };
-        }
-
-        private async Task AddCred()
-        {
-            Cred newCred = new Cred
-            {
-                Text = _credText,
-                Type = drop.ToString()
-            };
-            var response = await Http.PostAsJsonAsync(requestUri, newCred);
-            if (response.IsSuccessStatusCode)
-            {
-            }
-        }
-
-        public bool IsConnected =>
-        hubConnection.State == HubConnectionState.Connected;
-
-        public void Dispose()
-        {
-            _ = hubConnection.DisposeAsync();
-        }
-
+    // Explicit change handler for the Mode dropdown. `@bind` on <select value>
+    // to a bool used to work only intermittently in Blazor 5 (the string→bool
+    // converter would silently keep _bulkMode = false), leaving the textarea
+    // hidden and Submit doing nothing.
+    private void OnModeChanged(ChangeEventArgs e)
+    {
+        _bulkMode = e.Value?.ToString() == "true";
+        _error = null;
+        _status = null;
     }
+
+    // Explicit oninput for the textarea. Same reasoning as above: default
+    // @bind="_bulkText" only fires onchange (i.e. blur). A paste-then-immediate-
+    // click would send an empty _bulkText and Submit did nothing.
+    private void OnBulkInput(ChangeEventArgs e)
+    {
+        _bulkText = e.Value?.ToString() ?? "";
+    }
+
+    private record Column(string Label, string Type);
+    private readonly Column[] _columns = new[]
+    {
+        new Column("Usernames", "Username"),
+        new Column("Passwords", "Password"),
+        new Column("Pairs",     "Pair"),
+    };
+
+    private enum cType { Username, Password, Pair }
+    private cType drop = cType.Username;
+
+    // "" means no origin picked yet -- Submit stays disabled until it's set.
+    private string _origin = "";
+
+    // "" means show everything, including pre-existing creds with no origin.
+    private string _filter = "";
+    private record Filter(string Label, string Value);
+    private readonly Filter[] _filters = new[]
+    {
+        new Filter("All",    ""),
+        new Filter("Web",    "Web"),
+        new Filter("AD",     "AD"),
+        new Filter("Others", "Others"),
+    };
+
+    private static bool MatchesFilter(Cred c, string filter) =>
+        filter.Length == 0 || string.Equals(c.Origin, filter, StringComparison.OrdinalIgnoreCase);
+
+    private int CountFor(string filter) =>
+        creds.Count(c => c != null && MatchesFilter(c, filter));
+
+    private static string OriginBadge(string origin) => origin switch
+    {
+        "Web"     => "badge-info",
+        "AD"      => "badge-warning",
+        "Others"  => "badge-secondary",
+        "Created" => "badge-success",
+        _         => "badge-light",
+    };
+
+    private IEnumerable<Cred> CredsOfType(string t) =>
+        creds.Where(c => c != null && c.Type == t && MatchesFilter(c, _filter));
+
+    // (Password tracker) per-cred usage tracking.
+    private Dictionary<int, List<CredUsage>> _usagesByCred = new();
+    private List<BoxDTO> _boxes = new();
+    private int? _expandedCred;
+    private CredUsage _newUsage = new() { Status = "valid" };
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "valid"    => "badge-success",
+        "invalid"  => "badge-danger",
+        "untested" => "badge-secondary",
+        _          => "badge-light",
+    };
+
+    private async Task ToggleUsages(Cred c)
+    {
+        if (_expandedCred == c.CredId)
+        {
+            _expandedCred = null;
+            return;
+        }
+        _expandedCred = c.CredId;
+        _newUsage = new CredUsage { CredId = c.CredId, Status = "valid" };
+        await LoadUsagesFor(c.CredId);
+        if (_boxes.Count == 0)
+        {
+            try { _boxes = await Http.GetFromJsonAsync<List<BoxDTO>>("box"); } catch { }
+        }
+    }
+
+    private async Task LoadUsagesFor(int credId)
+    {
+        try
+        {
+            var list = await Http.GetFromJsonAsync<List<CredUsage>>($"credusages?credId={credId}");
+            _usagesByCred[credId] = list ?? new List<CredUsage>();
+        }
+        catch { _usagesByCred[credId] = new List<CredUsage>(); }
+    }
+
+    private async Task AddUsage(Cred c)
+    {
+        _newUsage.CredId = c.CredId;
+        // Resolve BoxId from Ip if the user picked one of the known hosts.
+        var match = _boxes.FirstOrDefault(b => b.Ip == _newUsage.Ip);
+        if (match != null) _newUsage.BoxId = match.BoxId;
+        var resp = await Http.PostAsJsonAsync("credusages", _newUsage);
+        if (resp.IsSuccessStatusCode)
+        {
+            _newUsage = new CredUsage { CredId = c.CredId, Status = "valid" };
+            await LoadUsagesFor(c.CredId);
+        }
+    }
+
+    private async Task DeleteUsage(Cred c, CredUsage u)
+    {
+        await Http.DeleteAsync($"credusages/{u.CredUsageId}");
+        await LoadUsagesFor(c.CredId);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        hubConnection.On<Cred>("CredAdded", t =>
+        {
+            creds.Add(t);
+            InvokeAsync(StateHasChanged);
+        });
+        hubConnection.On<Cred>("CredUpdated", t =>
+        {
+            var existing = creds.FirstOrDefault(c => c.CredId == t.CredId);
+            if (existing != null)
+            {
+                existing.Verified = t.Verified;
+                existing.Source = t.Source;
+                InvokeAsync(StateHasChanged);
+            }
+        });
+        hubConnection.On<int>("CredDeleted", id =>
+        {
+            var yo = creds.FirstOrDefault(c => c.CredId == id);
+            if (yo != null) creds.Remove(yo);
+            if (_expandedCred == id) _expandedCred = null;
+            _usagesByCred.Remove(id);
+            InvokeAsync(StateHasChanged);
+        });
+        hubConnection.On("CredUsagesChanged", async () =>
+        {
+            if (_expandedCred is int id)
+            {
+                await LoadUsagesFor(id);
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+        await hubConnection.StartAsync();
+        try
+        {
+            creds = await Http.GetFromJsonAsync<List<Cred>>(requestUri);
+        }
+        catch (Exception) { _error = "Failed to load creds"; }
+    }
+
+    private async Task AddOrBulk()
+    {
+        _error = null;
+        _status = null;
+        if (string.IsNullOrEmpty(_origin))
+        {
+            _error = "pick where the cred came from: Web, AD or Others";
+            return;
+        }
+        try
+        {
+            if (_bulkMode)
+            {
+                var lines = (_bulkText ?? "")
+                    .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(l => l.Trim())
+                    .Where(l => l.Length > 0)
+                    .ToList();
+                if (lines.Count == 0) { _error = "nothing pasted"; return; }
+                var payload = lines.Select(l => new Cred
+                {
+                    Text = l, Type = drop.ToString(), Source = _source,
+                    Verified = false, Origin = _origin,
+                }).ToList();
+                var r = await Http.PostAsJsonAsync($"{requestUri}/bulk", payload);
+                if (!r.IsSuccessStatusCode)
+                {
+                    var body = await r.Content.ReadAsStringAsync();
+                    _error = $"bulk POST failed: {(int)r.StatusCode} {r.ReasonPhrase} — {body}";
+                    return;
+                }
+                var added = await r.Content.ReadFromJsonAsync<int>();
+                _status = $"queued {lines.Count} line(s) — server added {added} new ({lines.Count - added} deduped)";
+                _bulkText = "";
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_credText)) { _error = "empty credential"; return; }
+                var newCred = new Cred
+                {
+                    Text = _credText.Trim(), Type = drop.ToString(),
+                    Source = _source, Verified = false, Origin = _origin,
+                };
+                var r = await Http.PostAsJsonAsync(requestUri, newCred);
+                if (!r.IsSuccessStatusCode)
+                {
+                    var body = await r.Content.ReadAsStringAsync();
+                    _error = $"POST failed: {(int)r.StatusCode} {r.ReasonPhrase} — {body}";
+                    return;
+                }
+                _credText = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = "submit threw: " + ex.Message;
+        }
+    }
+
+    private async Task ToggleVerified(Cred c, bool value)
+    {
+        c.Verified = value;
+        await Http.PutAsJsonAsync($"{requestUri}/{c.CredId}", c);
+    }
+
+    private async Task CopyOne(string text)
+    {
+        // Route through the same clipboardCopy.copyText shim in index.html used
+        // by the copy-all button. Calling navigator.clipboard.writeText via
+        // JSRuntime string-path loses `this` binding and throws "Illegal invocation".
+        try { await _JSRuntime.InvokeVoidAsync("clipboardCopy.copyText", text); }
+        catch { /* best-effort */ }
+    }
+
+    private async Task DeleteCred(Cred c)
+    {
+        var response = await Http.DeleteAsync($"{requestUri}/{c.CredId}");
+        if (!response.IsSuccessStatusCode) _error = response.ReasonPhrase;
+    }
+
+    public void Dispose()
+    {
+        _ = hubConnection?.DisposeAsync();
+    }
+}

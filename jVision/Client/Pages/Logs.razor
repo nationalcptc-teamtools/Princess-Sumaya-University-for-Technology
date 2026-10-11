@@ -1,0 +1,209 @@
+@page "/logs"
+@using jVision.Shared.Models
+@using System.Net.Http.Json
+@using System.Threading
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+<div class="d-flex align-items-center" style="gap:12px; margin-bottom:8px;">
+    <h3 style="margin:0; flex:1;">Engagement Logs</h3>
+    <a href="logs/export" class="btn btn-info" role="button" target="_top">
+        <span class="oi oi-data-transfer-download" style="margin-right:4px;"></span>
+        Download XLSX
+    </a>
+    <a href="logs/export.csv" class="btn btn-info" role="button" target="_top">
+        <span class="oi oi-data-transfer-download" style="margin-right:4px;"></span>
+        Download CSV
+    </a>
+</div>
+<p class="text-muted" style="margin-bottom:16px;">
+    One card per team member. Click a name to open that operator's live log
+    stream in a popup. Download exports one sheet per operator with bash and
+    burp columns.
+</p>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_operators == null)
+{
+    <p><em>Loading&hellip;</em></p>
+}
+else if (_operators.Count == 0)
+{
+    <p><em>No operators have pushed logs yet. Start the sync daemon on someone's box.</em></p>
+}
+else
+{
+    <div class="row" style="margin-top:8px;">
+        @foreach (var op in _operators)
+        {
+            <div class="col-sm-4 col-md-3 col-lg-2" style="margin-bottom:16px;">
+                <button class="btn btn-block"
+                        style="height:100px; font-size:18px; font-weight:600;
+                               background:@OperatorColor(op); color:#fff;
+                               border:none; border-radius:8px;
+                               box-shadow:0 2px 6px rgba(0,0,0,0.15);"
+                        @onclick="() => Open(op)">
+                    @op
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@if (_openOperator != null)
+{
+    <div class="bmodal" style="background-color:rgba(0,0,0,0.55);" @onclick="Close">
+        <div class="bmodal-content dynamicStyle"
+             style="top:5%; left:50%; min-width:80vw; min-height:70vh;
+                    max-height:90vh; overflow:hidden; display:flex; flex-direction:column;"
+             @onclick:stopPropagation="true">
+
+            <div class="bmodal-header d-flex align-items-center"
+                 style="padding:12px 16px; gap:12px; border-bottom:1px solid #eee;">
+                <div style="width:12px; height:12px; border-radius:50%;
+                            background:@OperatorColor(_openOperator);"></div>
+                <h4 style="margin:0; flex:1;">@_openOperator</h4>
+                <select class="form-control" style="max-width:140px;" @bind="_source">
+                    <option value="">all sources</option>
+                    <option value="zsh">zsh</option>
+                    <option value="burp">burp</option>
+                </select>
+                <input class="form-control" placeholder="grep..."
+                       style="max-width:240px;" @bind="_search" @bind:event="oninput" />
+                <input type="number" class="form-control" style="max-width:90px;"
+                       @bind="_limit" title="max rows" />
+                <button class="btn btn-primary" @onclick="Reload">Refresh</button>
+                <button type="button" class="close" @onclick="Close"
+                        style="margin-left:8px;"><span>&times;</span></button>
+            </div>
+
+            <div style="flex:1; overflow:auto; background:#111; color:#ddd;
+                        font-family:monospace; font-size:12px; padding:12px;">
+                @if (_logs == null)
+                {
+                    <p style="color:#888;"><em>Loading&hellip;</em></p>
+                }
+                else if (_logs.Count == 0)
+                {
+                    <p style="color:#888;"><em>No matching entries.</em></p>
+                }
+                else
+                {
+                    <div style="color:#888; padding-bottom:8px;">
+                        <small>@_logs.Count entries (newest first) · auto-refresh 15s</small>
+                    </div>
+                    @foreach (var l in _logs)
+                    {
+                        <div style="white-space:pre-wrap; padding:2px 0;
+                                    border-bottom:1px solid #222;">
+                            <span style="color:#888;">@l.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span>
+                            <span style="color:@(l.Source == "burp" ? "#e5a" : "#5ae");">[@l.Source]</span>
+                            @l.Line
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] public HttpClient Http { get; set; }
+
+    private List<string> _operators;
+    private string _openOperator;
+    private List<LogEntry> _logs;
+    private string _source = "";
+    private string _search = "";
+    private int _limit = 500;
+    private string _error;
+    private HubConnection _hub;
+    private Timer _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOperators();
+
+        _hub = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/boxhub")).Build();
+        _hub.On<int>("LogsAdded", async _ =>
+        {
+            // Refresh either the operator list (a new operator may have joined)
+            // or the currently open modal.
+            await LoadOperators();
+            if (_openOperator != null) await Reload();
+            await InvokeAsync(StateHasChanged);
+        });
+        await _hub.StartAsync();
+    }
+
+    private async Task LoadOperators()
+    {
+        try { _operators = await Http.GetFromJsonAsync<List<string>>("logs/operators"); }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    private async Task Open(string op)
+    {
+        _openOperator = op;
+        _logs = null;
+        _source = "";
+        _search = "";
+        _limit = 500;
+        await Reload();
+
+        _refreshTimer?.Dispose();
+        _refreshTimer = new Timer(async _ =>
+        {
+            await Reload();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+    }
+
+    private void Close()
+    {
+        _openOperator = null;
+        _logs = null;
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+    }
+
+    private async Task Reload()
+    {
+        if (_openOperator == null) return;
+        try
+        {
+            var q = new List<string>
+            {
+                $"operator={Uri.EscapeDataString(_openOperator)}",
+                $"limit={_limit}",
+            };
+            if (!string.IsNullOrEmpty(_source)) q.Add($"source={Uri.EscapeDataString(_source)}");
+            if (!string.IsNullOrEmpty(_search)) q.Add($"search={Uri.EscapeDataString(_search)}");
+            _logs = await Http.GetFromJsonAsync<List<LogEntry>>("logs?" + string.Join("&", q));
+            _error = null;
+        }
+        catch (Exception e) { _error = e.Message; }
+    }
+
+    // Stable per-operator color so the card + modal header dot always match.
+    private static string OperatorColor(string op)
+    {
+        if (string.IsNullOrEmpty(op)) return "#888";
+        int h = 0;
+        foreach (var c in op) h = (h * 31 + c) & 0x7FFFFFFF;
+        var hues = new[] { "#4a90e2", "#7b6ce0", "#c85dc9", "#e05e6f",
+                           "#e0954f", "#c9c14f", "#6bc26b", "#4fb8b8" };
+        return hues[h % hues.Length];
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        if (_hub != null) await _hub.DisposeAsync();
+    }
+}
